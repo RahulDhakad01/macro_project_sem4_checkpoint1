@@ -18,19 +18,19 @@ function populateForm(values) {
 }
 
 function renderResult(payload) {
-  const risky = payload.prediction === "Fraudulent";
+  const risky = payload.risk_level !== "LOW";
   panel.classList.toggle("risky", risky);
   panel.classList.toggle("safe", !risky);
 
-  resultStatus.textContent = payload.prediction;
-  resultSummary.textContent = `Decision generated using ${payload.selected_model}. This transaction shows a ${payload.fraud_probability}% fraud probability.`;
-  resultProbability.textContent = `${payload.fraud_probability}%`;
+  resultStatus.textContent = `${payload.risk_level} Risk`;
+  resultSummary.textContent = payload.message;
+  resultProbability.textContent = `${payload.fraud_score}%`;
   resultConfidence.textContent = `${payload.confidence}%`;
   resultRisk.textContent = payload.risk_level;
-  resultMeter.style.width = `${payload.fraud_probability}%`;
+  resultMeter.style.width = `${payload.fraud_score}%`;
 
   resultFactors.innerHTML = "";
-  payload.top_factors.forEach((factor) => {
+  payload.reasons.forEach((factor) => {
     const item = document.createElement("li");
     item.textContent = factor;
     resultFactors.appendChild(item);

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
@@ -21,6 +22,11 @@ def create_app() -> Flask:
     def index():
         payload = service.dashboard_payload()
         return render_template("index.html", dashboard=payload)
+
+    @app.get("/metrics")
+    def metrics():
+        payload = service.dashboard_payload()
+        return render_template("metrics.html", dashboard=payload)
 
     @app.get("/api/health")
     def health():
@@ -51,4 +57,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", "5000")))

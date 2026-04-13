@@ -124,7 +124,7 @@ body::before {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--accent-deep);
-  font-size: 0.74rem;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
@@ -327,6 +327,23 @@ body::before {
   margin-top: 0.75rem;
 }
 
+.metrics-page .section h2,
+.metrics-page .workspace-header h2 {
+  font-size: clamp(2.3rem, 4.5vw, 3.6rem);
+}
+
+.hero-compact {
+  padding-bottom: 2.4rem;
+}
+
+.metrics-hero {
+  display: grid;
+  grid-template-columns: 0.95fr 1.05fr;
+  gap: 1.4rem;
+  align-items: start;
+  padding-top: 2rem;
+}
+
 .intro-copy {
   color: var(--muted);
   line-height: 1.8;
@@ -366,7 +383,8 @@ body::before {
   font-weight: 600;
 }
 
-.field input {
+.field input,
+.field select {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.82);
   border-radius: 16px;
@@ -374,9 +392,11 @@ body::before {
   font: inherit;
   color: var(--ink);
   outline: none;
+  appearance: none;
 }
 
-.field input:focus {
+.field input:focus,
+.field select:focus {
   border-color: rgba(184, 92, 56, 0.7);
   box-shadow: 0 0 0 4px rgba(184, 92, 56, 0.12);
 }
@@ -608,6 +628,7 @@ body::before {
   .intro,
   .workspace-header,
   .section-heading,
+  .metrics-hero,
   .model-grid,
   .method-grid,
   .visual-grid {
@@ -652,16 +673,55 @@ body::before {
 
   .hero h1 {
     font-size: 2.7rem;
+    max-width: 10ch;
+  }
+
+  .hero-text,
+  .intro-copy,
+  .analytics-ribbon p,
+  .visual-copy p,
+  .method-grid p,
+  .form-note,
+  .result-summary {
+    font-size: 0.98rem;
+    line-height: 1.65;
+  }
+
+  .section-kicker,
+  .eyebrow,
+  .panel-label {
+    font-size: 0.82rem;
+  }
+
+  .hero-actions .button,
+  .form-actions .button {
+    width: 100%;
+  }
+
+  .analytics-ribbon article,
+  .visual-card,
+  .predictor-form,
+  .result-panel,
+  .hero-panel,
+  .model-card {
+    padding: 1.05rem;
   }
 
   .predictor-form,
   .result-panel,
   .hero-panel,
-  .model-card {
+  .model-card,
+  .visual-card,
+  .analytics-ribbon article {
     border-radius: 24px;
   }
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .mini-stats span,
+  .importance-list li {
+    font-size: 0.92rem;
   }
 }

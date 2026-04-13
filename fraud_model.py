@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
+import math
 import os
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,9 +19,9 @@ os.environ.setdefault(
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from imblearn.over_sampling import SMOTE
-from imblearn.pipeline import Pipeline as ImbPipeline
-from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     average_precision_score,
@@ -29,198 +32,166 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
-FEATURES = [
-    "amount",
-    "time_gap_minutes",
+MODEL_VERSION = 5
+INDIAN_DATASET_PATH = Path(
+    "/Users/rahuldhakad/Downloads/Updated_Inclusive_Indian_Online_Scam_Dataset (1).csv"
+)
+EUROPEAN_DATASET_PATH = Path("/Users/rahuldhakad/Downloads/creditcard.csv")
+FUSION_WEIGHTS = {"indian": 0.6, "global": 0.4}
+
+UNIFIED_FIELDS = [
+    "transaction_amount",
     "transaction_hour",
-    "merchant_risk",
-    "distance_from_home_km",
-    "device_score",
-    "transaction_velocity_24h",
-    "previous_declines",
-    "account_age_days",
-    "is_foreign",
-    "is_high_risk_country",
+    "location",
+    "merchant_category",
+    "card_type",
+    "transactions_last_24h",
+    "previous_declined_transactions",
+    "distance_from_home",
+    "foreign_transaction",
     "card_present",
 ]
 
-MODEL_VERSION = 4
-
-
-FEATURE_LABELS = {
-    "amount": "Transaction amount",
-    "time_gap_minutes": "Minutes since last transaction",
-    "transaction_hour": "Hour of transaction",
-    "merchant_risk": "Merchant risk score",
-    "distance_from_home_km": "Distance from home",
-    "device_score": "Device trust score",
-    "transaction_velocity_24h": "Transactions in last 24h",
-    "previous_declines": "Previous declined transactions",
-    "account_age_days": "Account age in days",
-    "is_foreign": "Foreign transaction",
-    "is_high_risk_country": "High-risk country",
+FIELD_LABELS = {
+    "transaction_amount": "Transaction amount",
+    "transaction_hour": "Transaction hour",
+    "location": "Location",
+    "merchant_category": "Merchant category",
+    "card_type": "Card type",
+    "transactions_last_24h": "Transactions in last 24h",
+    "previous_declined_transactions": "Previous declined transactions",
+    "distance_from_home": "Distance from home (km)",
+    "foreign_transaction": "Foreign transaction",
     "card_present": "Card present",
 }
 
+INDIAN_MODEL_FEATURES = [
+    "transaction_amount",
+    "transaction_hour",
+    "location",
+    "merchant_category",
+    "card_type",
+    "transactions_last_24h",
+    "previous_declined_transactions",
+    "distance_from_home",
+    "foreign_transaction",
+    "card_present",
+    "is_night",
+    "high_amount",
+    "txn_velocity",
+    "location_change",
+    "device_trust_score",
+]
 
-RANGES = {
-    "amount": {"min": 1, "max": 5000, "step": 1, "default": 1450},
-    "time_gap_minutes": {"min": 0, "max": 1440, "step": 1, "default": 4},
-    "transaction_hour": {"min": 0, "max": 23, "step": 1, "default": 2},
-    "merchant_risk": {"min": 1, "max": 10, "step": 1, "default": 8},
-    "distance_from_home_km": {"min": 0, "max": 5000, "step": 1, "default": 920},
-    "device_score": {"min": 0, "max": 100, "step": 1, "default": 18},
-    "transaction_velocity_24h": {"min": 1, "max": 60, "step": 1, "default": 14},
-    "previous_declines": {"min": 0, "max": 10, "step": 1, "default": 3},
-    "account_age_days": {"min": 1, "max": 5000, "step": 1, "default": 180},
-    "is_foreign": {"min": 0, "max": 1, "step": 1, "default": 1},
-    "is_high_risk_country": {"min": 0, "max": 1, "step": 1, "default": 1},
-    "card_present": {"min": 0, "max": 1, "step": 1, "default": 0},
+GLOBAL_MODEL_FEATURES = ["Time", "Amount", *[f"V{i}" for i in range(1, 29)]]
+
+CITY_COORDS = {
+    "Ahmedabad": (23.0225, 72.5714),
+    "Bangalore": (12.9716, 77.5946),
+    "Chennai": (13.0827, 80.2707),
+    "Delhi": (28.6139, 77.2090),
+    "Hyderabad": (17.3850, 78.4867),
+    "Jaipur": (26.9124, 75.7873),
+    "Kolkata": (22.5726, 88.3639),
+    "Mumbai": (19.0760, 72.8777),
+    "Pune": (18.5204, 73.8567),
+    "Surat": (21.1702, 72.8311),
 }
 
+UNIFIED_FIELD_CONFIG = {
+    "transaction_amount": {
+        "input_type": "number",
+        "min": 1,
+        "max": 50000,
+        "step": 0.01,
+        "default": 3200,
+    },
+    "transaction_hour": {
+        "input_type": "number",
+        "min": 0,
+        "max": 23,
+        "step": 1,
+        "default": 1,
+    },
+    "location": {"input_type": "select"},
+    "merchant_category": {"input_type": "select"},
+    "card_type": {"input_type": "select"},
+    "transactions_last_24h": {
+        "input_type": "number",
+        "min": 0,
+        "max": 50,
+        "step": 1,
+        "default": 9,
+    },
+    "previous_declined_transactions": {
+        "input_type": "number",
+        "min": 0,
+        "max": 10,
+        "step": 1,
+        "default": 2,
+    },
+    "distance_from_home": {
+        "input_type": "number",
+        "min": 0,
+        "max": 10000,
+        "step": 1,
+        "default": 780,
+    },
+    "foreign_transaction": {"input_type": "select"},
+    "card_present": {"input_type": "select"},
+}
 
 SCENARIOS = {
     "safe_purchase": {
-        "label": "Safe grocery purchase",
+        "label": "Safe local purchase",
         "values": {
-            "amount": 62,
-            "time_gap_minutes": 420,
-            "transaction_hour": 18,
-            "merchant_risk": 2,
-            "distance_from_home_km": 6,
-            "device_score": 88,
-            "transaction_velocity_24h": 2,
-            "previous_declines": 0,
-            "account_age_days": 1460,
-            "is_foreign": 0,
-            "is_high_risk_country": 0,
-            "card_present": 1,
+            "transaction_amount": 2400,
+            "transaction_hour": 15,
+            "location": "Pune",
+            "merchant_category": "POS",
+            "card_type": "Visa",
+            "transactions_last_24h": 2,
+            "previous_declined_transactions": 0,
+            "distance_from_home": 6,
+            "foreign_transaction": "0",
+            "card_present": "1",
         },
     },
-    "travel_booking": {
-        "label": "Travel booking",
+    "digital_anomaly": {
+        "label": "Digital anomaly",
         "values": {
-            "amount": 1850,
-            "time_gap_minutes": 190,
-            "transaction_hour": 21,
-            "merchant_risk": 5,
-            "distance_from_home_km": 180,
-            "device_score": 76,
-            "transaction_velocity_24h": 3,
-            "previous_declines": 0,
-            "account_age_days": 980,
-            "is_foreign": 1,
-            "is_high_risk_country": 0,
-            "card_present": 0,
+            "transaction_amount": 8600,
+            "transaction_hour": 2,
+            "location": "Delhi",
+            "merchant_category": "Digital",
+            "card_type": "MasterCard",
+            "transactions_last_24h": 11,
+            "previous_declined_transactions": 3,
+            "distance_from_home": 940,
+            "foreign_transaction": "1",
+            "card_present": "0",
         },
     },
-    "fraud_attack": {
-        "label": "Suspicious midnight attack",
+    "travel_spike": {
+        "label": "Travel spike",
         "values": {
-            "amount": 2499,
-            "time_gap_minutes": 3,
-            "transaction_hour": 1,
-            "merchant_risk": 9,
-            "distance_from_home_km": 2100,
-            "device_score": 12,
-            "transaction_velocity_24h": 18,
-            "previous_declines": 4,
-            "account_age_days": 90,
-            "is_foreign": 1,
-            "is_high_risk_country": 1,
-            "card_present": 0,
+            "transaction_amount": 12500,
+            "transaction_hour": 23,
+            "location": "Bangalore",
+            "merchant_category": "Digital",
+            "card_type": "Rupay",
+            "transactions_last_24h": 14,
+            "previous_declined_transactions": 2,
+            "distance_from_home": 1450,
+            "foreign_transaction": "1",
+            "card_present": "0",
         },
     },
 }
-
-
-def generate_synthetic_dataset(rows: int = 6000, random_state: int = 42) -> pd.DataFrame:
-    rng = np.random.default_rng(random_state)
-    fraud_rows = max(int(rows * 0.09), 1)
-    legit_rows = rows - fraud_rows
-
-    legit = pd.DataFrame(
-        {
-            "amount": np.clip(rng.gamma(shape=2.0, scale=95, size=legit_rows), 1, 2400),
-            "time_gap_minutes": np.clip(rng.exponential(scale=260, size=legit_rows), 6, 1440),
-            "transaction_hour": rng.choice(
-                np.arange(24), size=legit_rows, p=hour_distribution("legitimate")
-            ),
-            "merchant_risk": rng.integers(1, 7, size=legit_rows),
-            "distance_from_home_km": np.clip(
-                rng.gamma(shape=1.8, scale=18, size=legit_rows), 0, 600
-            ),
-            "device_score": np.clip(rng.normal(loc=78, scale=10, size=legit_rows), 35, 100),
-            "transaction_velocity_24h": np.clip(
-                rng.poisson(lam=2.1, size=legit_rows) + 1, 1, 10
-            ),
-            "previous_declines": np.clip(rng.poisson(lam=0.12, size=legit_rows), 0, 3),
-            "account_age_days": np.clip(
-                rng.gamma(shape=4.4, scale=290, size=legit_rows), 120, 5000
-            ),
-            "is_foreign": rng.binomial(1, 0.08, size=legit_rows),
-            "is_high_risk_country": rng.binomial(1, 0.02, size=legit_rows),
-            "card_present": rng.binomial(1, 0.68, size=legit_rows),
-            "is_fraud": np.zeros(legit_rows, dtype=int),
-        }
-    )
-
-    fraud = pd.DataFrame(
-        {
-            "amount": np.clip(rng.gamma(shape=2.4, scale=420, size=fraud_rows), 90, 5000),
-            "time_gap_minutes": np.clip(rng.exponential(scale=14, size=fraud_rows), 0, 120),
-            "transaction_hour": rng.choice(
-                np.arange(24), size=fraud_rows, p=hour_distribution("fraud")
-            ),
-            "merchant_risk": rng.integers(6, 11, size=fraud_rows),
-            "distance_from_home_km": np.clip(
-                rng.gamma(shape=2.6, scale=220, size=fraud_rows), 20, 5000
-            ),
-            "device_score": np.clip(rng.normal(loc=26, scale=12, size=fraud_rows), 0, 70),
-            "transaction_velocity_24h": np.clip(
-                rng.poisson(lam=8.5, size=fraud_rows) + 1, 3, 60
-            ),
-            "previous_declines": np.clip(rng.poisson(lam=2.1, size=fraud_rows), 0, 10),
-            "account_age_days": np.clip(
-                rng.gamma(shape=1.6, scale=120, size=fraud_rows), 1, 1200
-            ),
-            "is_foreign": rng.binomial(1, 0.66, size=fraud_rows),
-            "is_high_risk_country": rng.binomial(1, 0.48, size=fraud_rows),
-            "card_present": rng.binomial(1, 0.18, size=fraud_rows),
-            "is_fraud": np.ones(fraud_rows, dtype=int),
-        }
-    )
-
-    frame = pd.concat([legit, fraud], ignore_index=True).sample(
-        frac=1, random_state=random_state
-    )
-    noisy_indices = rng.choice(frame.index.to_numpy(), size=max(rows // 30, 1), replace=False)
-    frame.loc[noisy_indices, "is_fraud"] = 1 - frame.loc[noisy_indices, "is_fraud"]
-    return frame.round(
-        {
-            "amount": 2,
-            "time_gap_minutes": 2,
-            "distance_from_home_km": 2,
-            "device_score": 2,
-        }
-    ).reset_index(drop=True)
-
-
-def hour_distribution(mode: str) -> np.ndarray:
-    if mode == "fraud":
-        weights = np.array(
-            [0.10, 0.11, 0.11, 0.10, 0.08, 0.06, 0.03, 0.02, 0.02, 0.02, 0.02, 0.02,
-             0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.03, 0.03, 0.04, 0.04, 0.06, 0.09]
-        )
-    else:
-        weights = np.array(
-            [0.01, 0.01, 0.01, 0.01, 0.01, 0.02, 0.03, 0.05, 0.06, 0.06, 0.06, 0.06,
-             0.06, 0.06, 0.06, 0.06, 0.06, 0.06, 0.07, 0.07, 0.06, 0.04, 0.03, 0.02]
-        )
-    return weights / weights.sum()
 
 
 @dataclass
@@ -228,6 +199,7 @@ class ModelArtifacts:
     name: str
     estimator: Any
     metrics: dict[str, float]
+    threshold: float
 
 
 class FraudDetectionService:
@@ -238,114 +210,83 @@ class FraudDetectionService:
         self.report_path = self.model_dir / "training_report.json"
         self.generated_dir = self.model_dir.parent / "static" / "generated"
         self.generated_dir.mkdir(parents=True, exist_ok=True)
+        self.logger = configure_logger(self.model_dir / "prediction.log")
         self.bundle: dict[str, Any] | None = None
 
     def ensure_ready(self) -> None:
         if self.bundle_path.exists() and self.report_path.exists():
             loaded_bundle = joblib.load(self.bundle_path)
-            if loaded_bundle.get("model_version") == MODEL_VERSION:
+            current_meta = self._dataset_meta()
+            if loaded_bundle.get("model_version") == MODEL_VERSION and (
+                current_meta is None or loaded_bundle.get("dataset_meta") == current_meta
+            ):
                 self.bundle = loaded_bundle
                 return
 
         self.bundle = self._train_and_store()
 
-    def _train_and_store(self) -> dict[str, Any]:
-        dataset = generate_synthetic_dataset()
-        X = dataset[FEATURES]
-        y = dataset["is_fraud"]
-
-        X_train_full, X_test, y_train_full, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_train_full, y_train_full, test_size=0.2, random_state=42, stratify=y_train_full
-        )
-
-        models = {
-            "Logistic Regression + SMOTE": ImbPipeline(
-                [
-                    ("scaler", StandardScaler()),
-                    ("smote", SMOTE(random_state=42)),
-                    (
-                        "model",
-                        LogisticRegression(
-                            max_iter=2000,
-                            class_weight="balanced",
-                            random_state=42,
-                        ),
-                    ),
-                ]
-            ),
-            "Random Forest": RandomForestClassifier(
-                n_estimators=260,
-                max_depth=10,
-                min_samples_leaf=3,
-                class_weight="balanced_subsample",
-                random_state=42,
-            ),
-            "Extra Trees": ExtraTreesClassifier(
-                n_estimators=320,
-                max_depth=12,
-                min_samples_leaf=2,
-                class_weight="balanced",
-                random_state=42,
-            ),
+    def _dataset_meta(self) -> dict[str, float | int | str] | None:
+        if not (INDIAN_DATASET_PATH.exists() and EUROPEAN_DATASET_PATH.exists()):
+            return None
+        return {
+            "indian_path": str(INDIAN_DATASET_PATH),
+            "indian_size": INDIAN_DATASET_PATH.stat().st_size,
+            "indian_mtime": int(INDIAN_DATASET_PATH.stat().st_mtime),
+            "european_path": str(EUROPEAN_DATASET_PATH),
+            "european_size": EUROPEAN_DATASET_PATH.stat().st_size,
+            "european_mtime": int(EUROPEAN_DATASET_PATH.stat().st_mtime),
         }
 
-        scored_models: list[ModelArtifacts] = []
-        cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
-        for name, estimator in models.items():
-            estimator.fit(X_train, y_train)
-            cv_score = float(
-                cross_val_score(estimator, X_train_full, y_train_full, cv=cv, scoring="f1").mean()
-            )
-            val_probabilities = estimator.predict_proba(X_val)[:, 1]
-            threshold = best_threshold(y_val.to_numpy(), val_probabilities)
-            probabilities = estimator.predict_proba(X_test)[:, 1]
-            predicted = (probabilities >= threshold).astype(int)
-            scored_models.append(
-                ModelArtifacts(
-                    name=name,
-                    estimator=estimator,
-                    metrics={
-                        "precision": round(precision_score(y_test, predicted), 3),
-                        "recall": round(recall_score(y_test, predicted), 3),
-                        "f1": round(f1_score(y_test, predicted), 3),
-                        "roc_auc": round(roc_auc_score(y_test, probabilities), 3),
-                        "avg_precision": round(
-                            average_precision_score(y_test, probabilities), 3
-                        ),
-                        "cv_f1": round(cv_score, 3),
-                        "threshold": round(threshold, 3),
-                    },
-                )
-            )
+    def _train_and_store(self) -> dict[str, Any]:
+        ensure_dataset_exists(INDIAN_DATASET_PATH)
+        ensure_dataset_exists(EUROPEAN_DATASET_PATH)
 
-        selected = max(scored_models, key=lambda item: item.metrics["f1"])
-        selected_probabilities = selected.estimator.predict_proba(X_test)[:, 1]
-        selected_predictions = (selected_probabilities >= selected.metrics["threshold"]).astype(int)
-        cm = confusion_matrix(y_test, selected_predictions)
-        feature_strength = feature_importance_payload(selected.estimator, X_test, y_test)
-        visuals = generate_visuals(self.generated_dir, scored_models, cm, feature_strength)
+        indian_raw = pd.read_csv(INDIAN_DATASET_PATH)
+        indian_frame, indian_reference = prepare_indian_dataset(indian_raw)
+        indian_model, indian_confusion, feature_importance = train_indian_model(indian_frame)
+
+        european_raw = pd.read_csv(EUROPEAN_DATASET_PATH)
+        european_frame, global_reference = prepare_european_dataset(european_raw)
+        global_model = train_global_model(european_frame)
+
+        visuals = generate_visuals(
+            self.generated_dir,
+            [indian_model, global_model],
+            indian_confusion,
+            feature_importance,
+        )
+
         bundle = {
             "model_version": MODEL_VERSION,
-            "selected_model": selected.name,
-            "model": selected.estimator,
-            "threshold": selected.metrics["threshold"],
-            "metrics": {item.name: item.metrics for item in scored_models},
-            "fraud_rate": round(float(dataset["is_fraud"].mean() * 100), 2),
-            "dataset_size": int(len(dataset)),
-            "feature_labels": FEATURE_LABELS,
-            "feature_ranges": RANGES,
-            "scenarios": SCENARIOS,
-            "feature_importance": feature_strength,
+            "system_name": "Hybrid Fusion Engine",
+            "dataset_meta": self._dataset_meta(),
+            "fusion_weights": FUSION_WEIGHTS,
+            "indian_model": indian_model.estimator,
+            "indian_threshold": indian_model.threshold,
+            "global_model": global_model.estimator,
+            "global_threshold": global_model.threshold,
+            "metrics": {
+                "Indian Behavioral Model": indian_model.metrics,
+                "Global Card Pattern Model": global_model.metrics,
+            },
+            "dataset_summary": {
+                "indian_rows": int(len(indian_frame)),
+                "indian_fraud_rate": round(float(indian_frame["target"].mean() * 100), 2),
+                "european_rows": int(len(european_frame)),
+                "european_fraud_rate": round(float(european_frame["Class"].mean() * 100), 3),
+            },
+            "indian_reference": indian_reference,
+            "global_reference": global_reference,
+            "feature_importance": feature_importance,
             "visuals": visuals,
             "confusion_matrix": {
-                "true_negative": int(cm[0, 0]),
-                "false_positive": int(cm[0, 1]),
-                "false_negative": int(cm[1, 0]),
-                "true_positive": int(cm[1, 1]),
+                "true_negative": int(indian_confusion[0, 0]),
+                "false_positive": int(indian_confusion[0, 1]),
+                "false_negative": int(indian_confusion[1, 0]),
+                "true_positive": int(indian_confusion[1, 1]),
             },
+            "form_options": build_form_options(indian_reference),
+            "scenarios": SCENARIOS,
         }
 
         joblib.dump(bundle, self.bundle_path)
@@ -354,192 +295,684 @@ class FraudDetectionService:
 
     def model_summary(self) -> dict[str, Any]:
         assert self.bundle is not None
-        selected_name = self.bundle["selected_model"]
+        indian = self.bundle["metrics"]["Indian Behavioral Model"]
+        global_metrics = self.bundle["metrics"]["Global Card Pattern Model"]
+        hybrid_quality = round((indian["f1"] + global_metrics["f1"]) / 2, 3)
         return {
-            "name": selected_name,
-            "metrics": self.bundle["metrics"][selected_name],
+            "name": self.bundle["system_name"],
+            "metrics": {"f1": hybrid_quality},
         }
 
     def dashboard_payload(self) -> dict[str, Any]:
         assert self.bundle is not None
-        selected = self.model_summary()
+
         comparison = [
             {
-                "name": name,
-                "metrics": metrics,
-                "selected": name == self.bundle["selected_model"],
-            }
-            for name, metrics in self.bundle["metrics"].items()
+                "name": "Indian Behavioral Model",
+                "metrics": self.bundle["metrics"]["Indian Behavioral Model"],
+                "selected": False,
+            },
+            {
+                "name": "Global Card Pattern Model",
+                "metrics": self.bundle["metrics"]["Global Card Pattern Model"],
+                "selected": False,
+            },
         ]
+
+        fusion = self.bundle["fusion_weights"]
+        datasets = self.bundle["dataset_summary"]
+
         return {
-            "selected_model": selected,
+            "system_name": self.bundle["system_name"],
+            "selected_model": {
+                "name": self.bundle["system_name"],
+                "metrics": {
+                    "f1": self.bundle["metrics"]["Indian Behavioral Model"]["f1"],
+                    "precision": self.bundle["metrics"]["Indian Behavioral Model"]["precision"],
+                    "recall": self.bundle["metrics"]["Indian Behavioral Model"]["recall"],
+                    "cv_f1": self.bundle["metrics"]["Indian Behavioral Model"]["cv_f1"],
+                    "avg_precision": self.bundle["metrics"]["Global Card Pattern Model"][
+                        "avg_precision"
+                    ],
+                    "threshold": round(
+                        fusion["indian"] * self.bundle["indian_threshold"]
+                        + fusion["global"] * self.bundle["global_threshold"],
+                        3,
+                    ),
+                },
+            },
             "comparison": comparison,
-            "fraud_rate": self.bundle["fraud_rate"],
-            "dataset_size": self.bundle["dataset_size"],
+            "datasets": datasets,
+            "fusion_weights": fusion,
             "visuals": self.bundle["visuals"],
             "feature_importance": self.bundle["feature_importance"],
             "confusion_matrix": self.bundle["confusion_matrix"],
-            "features": [
-                {
-                    "name": feature,
-                    "label": FEATURE_LABELS[feature],
-                    **RANGES[feature],
-                }
-                for feature in FEATURES
-            ],
+            "features": build_dashboard_features(self.bundle["form_options"]),
             "scenarios": self.bundle["scenarios"],
         }
 
     def predict(self, raw_payload: dict[str, Any]) -> dict[str, Any]:
         assert self.bundle is not None
 
-        values: dict[str, float] = {}
-        for feature in FEATURES:
-            if feature not in raw_payload:
-                raise ValueError(f"Missing field: {feature}")
+        validated = validate_unified_payload(raw_payload, self.bundle["form_options"])
+        engineered = engineer_unified_features(validated, self.bundle["indian_reference"])
 
-            try:
-                numeric = float(raw_payload[feature])
-            except (TypeError, ValueError) as exc:
-                raise ValueError(f"Invalid value for {FEATURE_LABELS[feature]}") from exc
+        indian_frame = pd.DataFrame(
+            [{feature: engineered[feature] for feature in INDIAN_MODEL_FEATURES}],
+            columns=INDIAN_MODEL_FEATURES,
+        )
+        p_indian = float(self.bundle["indian_model"].predict_proba(indian_frame)[0][1])
 
-            minimum = RANGES[feature]["min"]
-            maximum = RANGES[feature]["max"]
-            if numeric < minimum or numeric > maximum:
-                raise ValueError(
-                    f"{FEATURE_LABELS[feature]} must be between {minimum} and {maximum}"
-                )
+        global_input = build_global_input(
+            validated, engineered, self.bundle["global_reference"]
+        )
+        global_frame = pd.DataFrame([global_input], columns=GLOBAL_MODEL_FEATURES)
+        p_global = float(self.bundle["global_model"].predict_proba(global_frame)[0][1])
 
-            if maximum == 1:
-                numeric = int(round(numeric))
-            values[feature] = numeric
+        final_score = (
+            self.bundle["fusion_weights"]["indian"] * p_indian
+            + self.bundle["fusion_weights"]["global"] * p_global
+        )
+        risk_level = fusion_risk_band(final_score)
+        confidence = max(final_score, 1 - final_score)
 
-        frame = pd.DataFrame([values], columns=FEATURES)
-        model = self.bundle["model"]
-        fraud_probability = float(model.predict_proba(frame)[0][1])
-        is_fraud = fraud_probability >= self.bundle["threshold"]
-        confidence = fraud_probability if is_fraud else 1 - fraud_probability
+        reasons = derive_dynamic_reasons(
+            validated,
+            engineered,
+            p_indian,
+            p_global,
+            final_score,
+            self.bundle["indian_reference"],
+        )
 
-        top_factors = derive_risk_factors(values, fraud_probability)
+        note = None
+        if p_indian > p_global and engineered["location_change"] == 1:
+            note = "Behavior deviates from the typical Indian transaction pattern."
+
+        self.logger.info(
+            json.dumps(
+                {
+                    "input": validated,
+                    "engineered": {
+                        "is_night": engineered["is_night"],
+                        "high_amount": engineered["high_amount"],
+                        "location_change": engineered["location_change"],
+                        "device_trust_score": engineered["device_trust_score"],
+                    },
+                    "P_indian": round(p_indian, 4),
+                    "P_global": round(p_global, 4),
+                    "fraud_score": round(final_score, 4),
+                    "risk_level": risk_level,
+                }
+            )
+        )
+
         return {
-            "prediction": "Fraudulent" if is_fraud else "Legitimate",
-            "fraud_probability": round(fraud_probability * 100, 2),
+            "prediction": f"{risk_level} Risk",
+            "fraud_score": round(final_score * 100, 2),
+            "fraud_probability": round(final_score * 100, 2),
             "confidence": round(confidence * 100, 2),
-            "risk_level": risk_band(fraud_probability),
-            "top_factors": top_factors,
-            "selected_model": self.bundle["selected_model"],
+            "risk_level": risk_level,
+            "P_indian": round(p_indian, 4),
+            "P_global": round(p_global, 4),
+            "reasons": reasons,
+            "top_factors": reasons,
+            "selected_model": self.bundle["system_name"],
+            "message": note
+            or "Fusion engine combined Indian behavior and global card patterns for this decision.",
         }
 
 
-def risk_band(probability: float) -> str:
-    if probability >= 0.8:
-        return "Critical"
-    if probability >= 0.55:
-        return "High"
-    if probability >= 0.3:
-        return "Medium"
-    return "Low"
+def ensure_dataset_exists(path: Path) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"Required dataset not found: {path}")
 
 
-def derive_risk_factors(values: dict[str, float], fraud_probability: float) -> list[str]:
-    reasons: list[tuple[float, str]] = []
+def configure_logger(log_path: Path) -> logging.Logger:
+    logger = logging.getLogger("fraud_prediction_logger")
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
-    if values["amount"] > 1500:
-        reasons.append((values["amount"] / 1000, "Unusually high transaction amount"))
-    if values["time_gap_minutes"] < 10:
-        reasons.append((1.8, "Very short time since the previous transaction"))
-    if values["transaction_hour"] <= 4 or values["transaction_hour"] >= 23:
-        reasons.append((1.5, "Transaction attempted at an unusual hour"))
-    if values["merchant_risk"] >= 8:
-        reasons.append((1.4, "Merchant category carries elevated fraud risk"))
-    if values["distance_from_home_km"] > 400:
-        reasons.append((1.3, "Location is far from the customer home area"))
-    if values["device_score"] < 35:
-        reasons.append((1.7, "Device trust score is unusually low"))
-    if values["transaction_velocity_24h"] >= 8:
-        reasons.append((1.2, "High transaction count in the last 24 hours"))
-    if values["previous_declines"] >= 2:
-        reasons.append((1.0, "Recent declines suggest repeated attempts"))
-    if values["account_age_days"] < 180:
-        reasons.append((0.9, "Account is relatively new"))
-    if values["is_foreign"] == 1:
-        reasons.append((1.25, "Transaction is marked as foreign"))
-    if values["is_high_risk_country"] == 1:
-        reasons.append((1.4, "Origin country is tagged as high risk"))
-    if values["card_present"] == 0:
-        reasons.append((0.7, "Card-not-present transactions are riskier"))
+    if logger.handlers:
+        return logger
 
-    if not reasons:
-        reasons.append((1.0, "Behavior matches the customer normal transaction pattern"))
+    formatter = logging.Formatter("%(asctime)s %(message)s")
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
 
-    reasons.sort(key=lambda item: item[0], reverse=True)
-    selected = [reason for _, reason in reasons[:3]]
-    if fraud_probability < 0.4 and "Behavior matches the customer normal transaction pattern" not in selected:
-        selected = ["Behavior matches the customer normal transaction pattern", *selected[:2]]
-    return selected
+    try:
+        if os.access(log_path.parent, os.W_OK):
+            file_handler = logging.FileHandler(log_path)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+    except OSError:
+        pass
+    return logger
 
 
-def bundle_for_json(bundle: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "model_version": bundle["model_version"],
-        "selected_model": bundle["selected_model"],
-        "metrics": bundle["metrics"],
-        "fraud_rate": bundle["fraud_rate"],
-        "dataset_size": bundle["dataset_size"],
-        "feature_labels": bundle["feature_labels"],
-        "feature_ranges": bundle["feature_ranges"],
-        "scenarios": bundle["scenarios"],
-        "visuals": bundle["visuals"],
-        "feature_importance": bundle["feature_importance"],
-        "confusion_matrix": bundle["confusion_matrix"],
+def prepare_indian_dataset(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    frame = raw.copy()
+    frame = frame.dropna(subset=["is_fraudulent"]).copy()
+    frame["is_fraudulent"] = frame["is_fraudulent"].astype(int)
+    frame["transaction_time"] = pd.to_datetime(
+        frame["transaction_time"], errors="coerce", format="%m/%d/%Y %H:%M"
+    )
+    frame = frame.dropna(subset=["transaction_time"]).copy()
+
+    frame["location"] = frame["location"].fillna("Unknown").astype(str)
+    frame["merchant_category"] = frame["purchase_category"].fillna("Unknown").astype(str)
+    frame["card_type"] = frame["card_type"].fillna("Unknown").astype(str)
+    frame["transaction_amount"] = frame["amount"].astype(float)
+    frame["transaction_hour"] = frame["transaction_time"].dt.hour.astype(int)
+
+    home_locations = (
+        frame.groupby("customer_id")["location"]
+        .agg(lambda values: values.mode().iat[0] if not values.mode().empty else "Unknown")
+        .to_dict()
+    )
+    frame["home_location"] = frame["customer_id"].map(home_locations).fillna(frame["location"])
+    frame["distance_from_home"] = frame.apply(
+        lambda row: city_distance_km(row["location"], row["home_location"]), axis=1
+    )
+
+    history = historical_activity_features(frame)
+    frame["transactions_last_24h"] = history["transactions_last_24h"]
+    frame["previous_declined_transactions"] = history["previous_declined_transactions"]
+
+    frame["foreign_transaction"] = frame["location"].apply(
+        lambda city: 0 if city in CITY_COORDS else 1
+    )
+    frame["card_present"] = frame["merchant_category"].apply(lambda value: 1 if value == "POS" else 0)
+
+    amount_threshold = float(frame["transaction_amount"].quantile(0.9))
+    frame["is_night"] = (frame["transaction_hour"] < 6).astype(int)
+    frame["high_amount"] = (frame["transaction_amount"] > amount_threshold).astype(int)
+    frame["txn_velocity"] = frame["transactions_last_24h"].astype(float)
+    frame["location_change"] = (frame["distance_from_home"] > 50).astype(int)
+    frame["device_trust_score"] = frame.apply(
+        lambda row: device_trust_score(
+            distance_from_home=float(row["distance_from_home"]),
+            transactions_last_24h=float(row["transactions_last_24h"]),
+            previous_declined_transactions=float(row["previous_declined_transactions"]),
+            foreign_transaction=int(row["foreign_transaction"]),
+            card_present=int(row["card_present"]),
+            location_change=int(row["location_change"]),
+        ),
+        axis=1,
+    )
+
+    location_risk = frame.groupby("location")["is_fraudulent"].mean().to_dict()
+    merchant_risk = frame.groupby("merchant_category")["is_fraudulent"].mean().to_dict()
+    card_type_risk = frame.groupby("card_type")["is_fraudulent"].mean().to_dict()
+
+    dataset = frame[INDIAN_MODEL_FEATURES].copy()
+    dataset["target"] = frame["is_fraudulent"].astype(int)
+
+    reference = {
+        "amount_threshold": round(amount_threshold, 2),
+        "location_options": sorted(frame["location"].dropna().unique().tolist()),
+        "merchant_options": sorted(frame["merchant_category"].dropna().unique().tolist()),
+        "card_type_options": sorted(frame["card_type"].dropna().unique().tolist()),
+        "location_risk": location_risk,
+        "merchant_risk": merchant_risk,
+        "card_type_risk": card_type_risk,
+        "overall_fraud_rate": float(frame["is_fraudulent"].mean()),
     }
+    return dataset, reference
+
+
+def historical_activity_features(frame: pd.DataFrame) -> pd.DataFrame:
+    ordered = frame.sort_values("transaction_time").copy()
+    tx_windows: dict[Any, deque[pd.Timestamp]] = defaultdict(deque)
+    previous_declines: dict[Any, int] = defaultdict(int)
+
+    counts: list[int] = []
+    declines: list[int] = []
+
+    for _, row in ordered.iterrows():
+        customer_id = row["customer_id"]
+        current_time = row["transaction_time"]
+        window = tx_windows[customer_id]
+        while window and (current_time - window[0]).total_seconds() > 86400:
+            window.popleft()
+
+        counts.append(len(window))
+        declines.append(previous_declines[customer_id])
+
+        window.append(current_time)
+        previous_declines[customer_id] += int(row["is_fraudulent"])
+
+    ordered["transactions_last_24h"] = counts
+    ordered["previous_declined_transactions"] = np.clip(declines, 0, 10)
+    return ordered.sort_index()[["transactions_last_24h", "previous_declined_transactions"]]
+
+
+def city_distance_km(city_a: str, city_b: str) -> float:
+    if city_a == city_b:
+        return 0.0
+    if city_a not in CITY_COORDS or city_b not in CITY_COORDS:
+        return 350.0
+    lat1, lon1 = CITY_COORDS[city_a]
+    lat2, lon2 = CITY_COORDS[city_b]
+    return round(haversine_km(lat1, lon1, lat2, lon2), 2)
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_phi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    )
+    return 2 * radius * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def prepare_european_dataset(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    fraud = raw[raw["Class"] == 1]
+    non_fraud = raw[raw["Class"] == 0].sample(n=25000, random_state=42)
+    sampled = pd.concat([fraud, non_fraud], ignore_index=True).sample(frac=1, random_state=42)
+
+    v_columns = [f"V{i}" for i in range(1, 29)]
+    reference = {
+        "amount_threshold": round(float(raw["Amount"].quantile(0.9)), 2),
+        "time_max": float(raw["Time"].max()),
+        "fraud_medians": raw[raw["Class"] == 1][v_columns].median().to_dict(),
+        "safe_medians": raw[raw["Class"] == 0][v_columns].median().to_dict(),
+        "v_stds": raw[v_columns].std().replace(0, 1).to_dict(),
+    }
+    return sampled[GLOBAL_MODEL_FEATURES + ["Class"]].copy(), reference
+
+
+def train_indian_model(
+    dataset: pd.DataFrame,
+) -> tuple[ModelArtifacts, np.ndarray, list[dict[str, float | str]]]:
+    X = dataset[INDIAN_MODEL_FEATURES]
+    y = dataset["target"]
+
+    X_train_full, X_test, y_train_full, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train_full, y_train_full, test_size=0.2, random_state=42, stratify=y_train_full
+    )
+
+    categorical = ["location", "merchant_category", "card_type"]
+    numeric = [feature for feature in INDIAN_MODEL_FEATURES if feature not in categorical]
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            (
+                "numeric",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                    ]
+                ),
+                numeric,
+            ),
+            (
+                "categorical",
+                Pipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="most_frequent")),
+                        ("encoder", OneHotEncoder(handle_unknown="ignore")),
+                    ]
+                ),
+                categorical,
+            ),
+        ]
+    )
+
+    estimator = Pipeline(
+        [
+            ("preprocessor", preprocessor),
+            (
+                "model",
+                RandomForestClassifier(
+                    n_estimators=320,
+                    max_depth=14,
+                    min_samples_leaf=2,
+                    class_weight="balanced",
+                    random_state=42,
+                ),
+            ),
+        ]
+    )
+
+    estimator.fit(X_train, y_train)
+    cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
+    cv_score = float(cross_val_score(estimator, X_train_full, y_train_full, cv=cv, scoring="f1").mean())
+
+    val_probabilities = estimator.predict_proba(X_val)[:, 1]
+    threshold = best_threshold(y_val.to_numpy(), val_probabilities)
+
+    probabilities = estimator.predict_proba(X_test)[:, 1]
+    predicted = (probabilities >= threshold).astype(int)
+    metrics = {
+        "precision": round(precision_score(y_test, predicted, zero_division=0), 3),
+        "recall": round(recall_score(y_test, predicted, zero_division=0), 3),
+        "f1": round(f1_score(y_test, predicted, zero_division=0), 3),
+        "roc_auc": round(roc_auc_score(y_test, probabilities), 3),
+        "avg_precision": round(average_precision_score(y_test, probabilities), 3),
+        "cv_f1": round(cv_score, 3),
+        "threshold": round(threshold, 3),
+    }
+
+    confusion = confusion_matrix(y_test, predicted)
+    importance = aggregate_feature_importance(estimator, categorical, numeric)
+    return (
+        ModelArtifacts(
+            name="Indian Behavioral Model",
+            estimator=estimator,
+            metrics=metrics,
+            threshold=threshold,
+        ),
+        confusion,
+        importance,
+    )
+
+
+def train_global_model(dataset: pd.DataFrame) -> ModelArtifacts:
+    X = dataset[GLOBAL_MODEL_FEATURES]
+    y = dataset["Class"]
+
+    X_train_full, X_test, y_train_full, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_train_full, y_train_full, test_size=0.2, random_state=42, stratify=y_train_full
+    )
+
+    estimator = Pipeline(
+        [
+            ("scaler", StandardScaler()),
+            (
+                "model",
+                LogisticRegression(
+                    max_iter=2000,
+                    class_weight="balanced",
+                    random_state=42,
+                ),
+            ),
+        ]
+    )
+
+    estimator.fit(X_train, y_train)
+    cv = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
+    cv_score = float(cross_val_score(estimator, X_train_full, y_train_full, cv=cv, scoring="f1").mean())
+
+    val_probabilities = estimator.predict_proba(X_val)[:, 1]
+    threshold = best_threshold(y_val.to_numpy(), val_probabilities)
+
+    probabilities = estimator.predict_proba(X_test)[:, 1]
+    predicted = (probabilities >= threshold).astype(int)
+    metrics = {
+        "precision": round(precision_score(y_test, predicted, zero_division=0), 3),
+        "recall": round(recall_score(y_test, predicted, zero_division=0), 3),
+        "f1": round(f1_score(y_test, predicted, zero_division=0), 3),
+        "roc_auc": round(roc_auc_score(y_test, probabilities), 3),
+        "avg_precision": round(average_precision_score(y_test, probabilities), 3),
+        "cv_f1": round(cv_score, 3),
+        "threshold": round(threshold, 3),
+    }
+    return ModelArtifacts(
+        name="Global Card Pattern Model",
+        estimator=estimator,
+        metrics=metrics,
+        threshold=threshold,
+    )
+
+
+def aggregate_feature_importance(
+    estimator: Pipeline, categorical: list[str], numeric: list[str]
+) -> list[dict[str, float | str]]:
+    preprocessor: ColumnTransformer = estimator.named_steps["preprocessor"]
+    model: RandomForestClassifier = estimator.named_steps["model"]
+    feature_names = preprocessor.get_feature_names_out()
+    raw_scores = model.feature_importances_
+
+    grouped: defaultdict[str, float] = defaultdict(float)
+    for feature_name, score in zip(feature_names, raw_scores):
+        clean = feature_name.split("__", 1)[1]
+        raw_name = clean.split("_", 1)[0] if clean.split("_", 1)[0] in categorical else clean
+        grouped[raw_name] += float(score)
+
+    ordered = sorted(grouped.items(), key=lambda item: item[1], reverse=True)
+    return [
+        {
+            "feature": name,
+            "label": FIELD_LABELS.get(name, name.replace("_", " ").title()),
+            "importance": round(score, 4),
+        }
+        for name, score in ordered[:6]
+    ]
 
 
 def best_threshold(y_true: np.ndarray, probabilities: np.ndarray) -> float:
     thresholds = np.linspace(0.2, 0.8, 25)
     best_score = -1.0
-    best = 0.5
+    chosen = 0.5
     for threshold in thresholds:
         predicted = (probabilities >= threshold).astype(int)
         score = f1_score(y_true, predicted, zero_division=0)
         if score > best_score:
             best_score = score
-            best = float(threshold)
-    return best
+            chosen = float(threshold)
+    return chosen
 
 
-def feature_importance_payload(estimator: Any, X_test: pd.DataFrame, y_test: pd.Series) -> list[dict[str, float | str]]:
-    model = estimator.named_steps["model"] if hasattr(estimator, "named_steps") else estimator
-    if hasattr(model, "feature_importances_"):
-        values = model.feature_importances_
-    elif hasattr(model, "coef_"):
-        values = np.abs(model.coef_[0])
-    else:
-        values = np.zeros(len(FEATURES))
+def build_dashboard_features(form_options: dict[str, list[str]]) -> list[dict[str, Any]]:
+    features: list[dict[str, Any]] = []
+    for field in UNIFIED_FIELDS:
+        config = dict(UNIFIED_FIELD_CONFIG[field])
+        payload = {"name": field, "label": FIELD_LABELS[field], **config}
+        if config["input_type"] == "select":
+            if field in {"foreign_transaction", "card_present"}:
+                payload["options"] = [
+                    {"value": "0", "label": "0 - No"},
+                    {"value": "1", "label": "1 - Yes"},
+                ]
+                payload["default"] = "0"
+            else:
+                payload["options"] = [
+                    {"value": option, "label": option} for option in form_options[field]
+                ]
+                payload["default"] = form_options[field][0]
+        features.append(payload)
+    return features
 
-    ranking = sorted(
-        [
-            {
-                "feature": feature,
-                "label": FEATURE_LABELS[feature],
-                "importance": round(float(score), 4),
-            }
-            for feature, score in zip(FEATURES, values)
-        ],
-        key=lambda item: item["importance"],
-        reverse=True,
+
+def build_form_options(indian_reference: dict[str, Any]) -> dict[str, list[str]]:
+    return {
+        "location": indian_reference["location_options"],
+        "merchant_category": indian_reference["merchant_options"],
+        "card_type": indian_reference["card_type_options"],
+    }
+
+
+def validate_unified_payload(
+    raw_payload: dict[str, Any], form_options: dict[str, list[str]]
+) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    numeric_fields = {
+        "transaction_amount": (1, 50000),
+        "transaction_hour": (0, 23),
+        "transactions_last_24h": (0, 50),
+        "previous_declined_transactions": (0, 10),
+        "distance_from_home": (0, 10000),
+    }
+
+    for field in UNIFIED_FIELDS:
+        if field not in raw_payload:
+            raise ValueError(f"Missing field: {field}")
+
+    for field, (minimum, maximum) in numeric_fields.items():
+        try:
+            numeric = float(raw_payload[field])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid value for {FIELD_LABELS[field]}") from exc
+        if numeric < minimum or numeric > maximum:
+            raise ValueError(
+                f"{FIELD_LABELS[field]} must be between {minimum} and {maximum}"
+            )
+        values[field] = int(numeric) if field != "transaction_amount" else float(numeric)
+
+    for field in ["location", "merchant_category", "card_type"]:
+        candidate = str(raw_payload[field])
+        if candidate not in form_options[field]:
+            raise ValueError(f"Invalid option for {FIELD_LABELS[field]}")
+        values[field] = candidate
+
+    for field in ["foreign_transaction", "card_present"]:
+        candidate = str(raw_payload[field])
+        if candidate not in {"0", "1", 0, 1}:
+            raise ValueError(f"{FIELD_LABELS[field]} must be 0 or 1")
+        values[field] = int(candidate)
+
+    return values
+
+
+def engineer_unified_features(
+    values: dict[str, Any], indian_reference: dict[str, Any]
+) -> dict[str, Any]:
+    engineered = dict(values)
+    engineered["is_night"] = int(values["transaction_hour"] < 6)
+    engineered["high_amount"] = int(
+        values["transaction_amount"] > indian_reference["amount_threshold"]
     )
-    return ranking[:6]
+    engineered["txn_velocity"] = values["transactions_last_24h"]
+    engineered["location_change"] = int(
+        values["distance_from_home"] > 50 or values["foreign_transaction"] == 1
+    )
+    engineered["device_trust_score"] = device_trust_score(
+        distance_from_home=values["distance_from_home"],
+        transactions_last_24h=values["transactions_last_24h"],
+        previous_declined_transactions=values["previous_declined_transactions"],
+        foreign_transaction=values["foreign_transaction"],
+        card_present=values["card_present"],
+        location_change=engineered["location_change"],
+    )
+    return engineered
 
 
-def bundle_visual_path(name: str) -> str:
-    return f"generated/{name}"
+def device_trust_score(
+    *,
+    distance_from_home: float,
+    transactions_last_24h: float,
+    previous_declined_transactions: float,
+    foreign_transaction: int,
+    card_present: int,
+    location_change: int,
+) -> float:
+    score = (
+        88
+        - min(distance_from_home / 18, 35)
+        - min(transactions_last_24h * 2.6, 20)
+        - min(previous_declined_transactions * 6, 18)
+        - 14 * foreign_transaction
+        - 8 * location_change
+        + 7 * card_present
+    )
+    return round(float(np.clip(score, 5, 98)), 2)
 
 
-def save_plot(fig: plt.Figure, output: Path) -> str:
-    fig.savefig(output, dpi=180, bbox_inches="tight")
-    plt.close(fig)
-    return bundle_visual_path(output.name)
+def build_global_input(
+    values: dict[str, Any], engineered: dict[str, Any], global_reference: dict[str, Any]
+) -> dict[str, float]:
+    risk_proxy = np.clip(
+        0.25 * engineered["high_amount"]
+        + 0.16 * engineered["is_night"]
+        + 0.18 * values["foreign_transaction"]
+        + 0.12 * (1 - values["card_present"])
+        + 0.12 * min(values["transactions_last_24h"] / 12, 1)
+        + 0.10 * min(values["previous_declined_transactions"] / 4, 1)
+        + 0.07 * min(values["distance_from_home"] / 1500, 1),
+        0,
+        1,
+    )
+
+    amount = float(values["transaction_amount"])
+    time_seconds = float(
+        min(global_reference["time_max"], values["transaction_hour"] * 3600 + values["transactions_last_24h"] * 45)
+    )
+    seed = (
+        values["transaction_hour"] * 0.7
+        + amount * 0.004
+        + values["transactions_last_24h"] * 0.9
+        + values["previous_declined_transactions"] * 1.3
+        + values["distance_from_home"] * 0.0015
+        + values["foreign_transaction"] * 1.7
+        + (1 - values["card_present"]) * 0.8
+    )
+
+    mapped: dict[str, float] = {"Time": time_seconds, "Amount": amount}
+    for index in range(1, 29):
+        key = f"V{index}"
+        safe = global_reference["safe_medians"][key]
+        fraud = global_reference["fraud_medians"][key]
+        std = global_reference["v_stds"][key]
+        oscillation = math.sin(seed * (index + 1))
+        mapped[key] = safe + risk_proxy * (fraud - safe) + oscillation * std * 0.035
+    return mapped
+
+
+def fusion_risk_band(score: float) -> str:
+    if score > 0.7:
+        return "HIGH"
+    if score >= 0.3:
+        return "MEDIUM"
+    return "LOW"
+
+
+def derive_dynamic_reasons(
+    values: dict[str, Any],
+    engineered: dict[str, Any],
+    p_indian: float,
+    p_global: float,
+    final_score: float,
+    indian_reference: dict[str, Any],
+) -> list[str]:
+    reasons: list[tuple[float, str]] = []
+
+    if engineered["is_night"] == 1:
+        reasons.append((1.0, "Transaction at an unusual hour"))
+    if engineered["high_amount"] == 1:
+        reasons.append((1.2, "High transaction amount compared with typical behavior"))
+    if engineered["location_change"] == 1:
+        reasons.append((1.15, "New location detected relative to the home area"))
+    if values["foreign_transaction"] == 1:
+        reasons.append((1.1, "Foreign transaction flag is active"))
+    if values["transactions_last_24h"] >= 8:
+        reasons.append((1.0, "High transaction frequency in the last 24 hours"))
+    if values["previous_declined_transactions"] >= 2:
+        reasons.append((0.95, "Multiple previous declined attempts were reported"))
+    if engineered["device_trust_score"] <= 40:
+        reasons.append((1.05, "Low device trust score based on transaction behavior"))
+    if values["card_present"] == 0:
+        reasons.append((0.7, "Card-not-present activity increases digital fraud risk"))
+
+    merchant_risk = indian_reference["merchant_risk"].get(values["merchant_category"], 0)
+    if merchant_risk > indian_reference["overall_fraud_rate"] + 0.08:
+        reasons.append((0.85, "Merchant category shows elevated fraud risk in Indian data"))
+
+    location_risk = indian_reference["location_risk"].get(values["location"], 0)
+    if location_risk > indian_reference["overall_fraud_rate"] + 0.07:
+        reasons.append((0.8, "Current location has higher fraud incidence in Indian data"))
+
+    if p_indian > p_global and final_score >= 0.45:
+        reasons.append((0.9, "Behavior deviates from typical Indian transaction patterns"))
+    elif p_global > 0.55:
+        reasons.append((0.75, "Global card fraud model detected abnormal card usage patterns"))
+
+    if not reasons:
+        reasons.append((1.0, "Behavior remains close to the normal low-risk transaction profile"))
+
+    reasons.sort(key=lambda item: item[0], reverse=True)
+    return [reason for _, reason in reasons[:4]]
 
 
 def apply_plot_style() -> None:
@@ -558,44 +991,56 @@ def apply_plot_style() -> None:
     )
 
 
-def model_metric_rows(scored_models: list[ModelArtifacts]) -> pd.DataFrame:
-    return pd.DataFrame(
+def save_plot(fig: plt.Figure, output: Path) -> str:
+    fig.savefig(output, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    return f"generated/{output.name}"
+
+
+def generate_visuals(
+    output_dir: Path,
+    models: list[ModelArtifacts],
+    indian_confusion: np.ndarray,
+    feature_importance: list[dict[str, float | str]],
+) -> dict[str, str]:
+    return {
+        "model_comparison": plot_model_comparison(models, output_dir),
+        "confusion_matrix": plot_confusion_matrix(indian_confusion, output_dir),
+        "feature_importance": plot_feature_importance(feature_importance, output_dir),
+    }
+
+
+def plot_model_comparison(models: list[ModelArtifacts], output_dir: Path) -> str:
+    apply_plot_style()
+    frame = pd.DataFrame(
         [
             {
-                "Model": item.name,
-                "F1-score": item.metrics["f1"],
-                "Precision": item.metrics["precision"],
-                "Recall": item.metrics["recall"],
-                "ROC-AUC": item.metrics["roc_auc"],
+                "Model": model.name,
+                "F1-score": model.metrics["f1"],
+                "Precision": model.metrics["precision"],
+                "Recall": model.metrics["recall"],
+                "ROC-AUC": model.metrics["roc_auc"],
             }
-            for item in scored_models
+            for model in models
         ]
-    )
-
-
-def _color_palette(count: int) -> list[str]:
-    base = ["#b85c38", "#1f7a58", "#244c7d", "#8f4021"]
-    return base[:count]
-
-
-def plot_model_comparison(scored_models: list[ModelArtifacts], output_dir: Path) -> str:
-    apply_plot_style()
-    frame = model_metric_rows(scored_models).set_index("Model")
+    ).set_index("Model")
     fig, ax = plt.subplots(figsize=(9, 4.8))
-    frame[["F1-score", "Precision", "Recall", "ROC-AUC"]].plot(
-        kind="bar", ax=ax, color=["#b85c38", "#1f7a58", "#244c7d", "#d2a679"]
+    frame.plot(
+        kind="bar",
+        ax=ax,
+        color=["#b85c38", "#1f7a58", "#244c7d", "#d2a679"],
     )
     ax.set_ylim(0, 1.05)
-    ax.set_title("Model Performance Comparison", fontsize=15, fontweight="bold")
     ax.set_ylabel("Score")
+    ax.set_title("Indian vs Global Model Performance", fontsize=15, fontweight="bold")
     ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.18))
-    ax.tick_params(axis="x", rotation=12)
+    ax.tick_params(axis="x", rotation=8)
     return save_plot(fig, output_dir / "model_comparison.png")
 
 
 def plot_confusion_matrix(conf_matrix: np.ndarray, output_dir: Path) -> str:
     apply_plot_style()
-    fig, ax = plt.subplots(figsize=(5.2, 4.4))
+    fig, ax = plt.subplots(figsize=(5.4, 4.4))
     sns.heatmap(
         conf_matrix,
         annot=True,
@@ -604,7 +1049,7 @@ def plot_confusion_matrix(conf_matrix: np.ndarray, output_dir: Path) -> str:
         cbar=False,
         ax=ax,
     )
-    ax.set_title("Selected Model Confusion Matrix", fontsize=14, fontweight="bold")
+    ax.set_title("Indian Model Confusion Matrix", fontsize=14, fontweight="bold")
     ax.set_xlabel("Predicted label")
     ax.set_ylabel("Actual label")
     ax.set_xticklabels(["Legitimate", "Fraud"], rotation=0)
@@ -612,25 +1057,30 @@ def plot_confusion_matrix(conf_matrix: np.ndarray, output_dir: Path) -> str:
     return save_plot(fig, output_dir / "confusion_matrix.png")
 
 
-def plot_feature_importance(feature_strength: list[dict[str, float | str]], output_dir: Path) -> str:
+def plot_feature_importance(
+    feature_importance: list[dict[str, float | str]], output_dir: Path
+) -> str:
     apply_plot_style()
-    frame = pd.DataFrame(feature_strength).sort_values("importance")
+    frame = pd.DataFrame(feature_importance).sort_values("importance")
     fig, ax = plt.subplots(figsize=(7.4, 4.8))
-    ax.barh(frame["label"], frame["importance"], color=_color_palette(len(frame)))
-    ax.set_title("Top Drivers Used By Selected Model", fontsize=14, fontweight="bold")
+    ax.barh(frame["label"], frame["importance"], color="#b85c38")
+    ax.set_title("Top Drivers In Indian Behavioral Model", fontsize=14, fontweight="bold")
     ax.set_xlabel("Importance")
     ax.set_ylabel("")
     return save_plot(fig, output_dir / "feature_importance.png")
 
 
-def generate_visuals(
-    output_dir: Path,
-    scored_models: list[ModelArtifacts],
-    conf_matrix: np.ndarray,
-    feature_strength: list[dict[str, float | str]],
-) -> dict[str, str]:
+def bundle_for_json(bundle: dict[str, Any]) -> dict[str, Any]:
     return {
-        "model_comparison": plot_model_comparison(scored_models, output_dir),
-        "confusion_matrix": plot_confusion_matrix(conf_matrix, output_dir),
-        "feature_importance": plot_feature_importance(feature_strength, output_dir),
+        "model_version": bundle["model_version"],
+        "system_name": bundle["system_name"],
+        "dataset_meta": bundle["dataset_meta"],
+        "fusion_weights": bundle["fusion_weights"],
+        "metrics": bundle["metrics"],
+        "dataset_summary": bundle["dataset_summary"],
+        "visuals": bundle["visuals"],
+        "feature_importance": bundle["feature_importance"],
+        "confusion_matrix": bundle["confusion_matrix"],
+        "scenarios": bundle["scenarios"],
+        "form_options": bundle["form_options"],
     }

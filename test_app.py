@@ -13,22 +13,30 @@ def test_health_endpoint():
     assert payload["selected_model"]
 
 
+def test_metrics_page():
+    app = create_app()
+    client = app.test_client()
+
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert b"Machine learning evidence" in response.data
+
+
 def test_prediction_endpoint():
     app = create_app()
     client = app.test_client()
 
     payload = {
-        "amount": 2400,
-        "time_gap_minutes": 3,
-        "transaction_hour": 1,
-        "merchant_risk": 9,
-        "distance_from_home_km": 2100,
-        "device_score": 12,
-        "transaction_velocity_24h": 18,
-        "previous_declines": 4,
-        "account_age_days": 90,
-        "is_foreign": 1,
-        "is_high_risk_country": 1,
+        "transaction_amount": 8800,
+        "transaction_hour": 2,
+        "location": "Delhi",
+        "merchant_category": "Digital",
+        "card_type": "Visa",
+        "transactions_last_24h": 12,
+        "previous_declined_transactions": 3,
+        "distance_from_home": 950,
+        "foreign_transaction": 1,
         "card_present": 0,
     }
 
@@ -37,5 +45,7 @@ def test_prediction_endpoint():
 
     assert response.status_code == 200
     assert body["status"] == "ok"
-    assert "fraud_probability" in body
-    assert len(body["top_factors"]) > 0
+    assert "fraud_score" in body
+    assert "P_indian" in body
+    assert "P_global" in body
+    assert len(body["reasons"]) > 0

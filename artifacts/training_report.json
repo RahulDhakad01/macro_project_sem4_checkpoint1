@@ -1,177 +1,43 @@
 {
-  "model_version": 4,
-  "selected_model": "Logistic Regression + SMOTE",
+  "model_version": 5,
+  "system_name": "Hybrid Fusion Engine",
+  "dataset_meta": {
+    "indian_path": "/Users/rahuldhakad/Downloads/Updated_Inclusive_Indian_Online_Scam_Dataset (1).csv",
+    "indian_size": 681319,
+    "indian_mtime": 1776086600,
+    "european_path": "/Users/rahuldhakad/Downloads/creditcard.csv",
+    "european_size": 150828752,
+    "european_mtime": 1568918084
+  },
+  "fusion_weights": {
+    "indian": 0.6,
+    "global": 0.4
+  },
   "metrics": {
-    "Logistic Regression + SMOTE": {
-      "precision": 1.0,
-      "recall": 0.794,
-      "f1": 0.885,
-      "roc_auc": 0.903,
-      "avg_precision": 0.848,
-      "cv_f1": 0.804,
-      "threshold": 0.65
+    "Indian Behavioral Model": {
+      "precision": 0.942,
+      "recall": 0.887,
+      "f1": 0.914,
+      "roc_auc": 0.988,
+      "avg_precision": 0.978,
+      "cv_f1": 0.916,
+      "threshold": 0.5
     },
-    "Random Forest": {
-      "precision": 1.0,
-      "recall": 0.794,
-      "f1": 0.885,
-      "roc_auc": 0.885,
-      "avg_precision": 0.849,
-      "cv_f1": 0.828,
-      "threshold": 0.475
-    },
-    "Extra Trees": {
-      "precision": 0.991,
-      "recall": 0.794,
-      "f1": 0.882,
-      "roc_auc": 0.894,
-      "avg_precision": 0.848,
-      "cv_f1": 0.828,
-      "threshold": 0.4
+    "Global Card Pattern Model": {
+      "precision": 0.759,
+      "recall": 0.898,
+      "f1": 0.822,
+      "roc_auc": 0.978,
+      "avg_precision": 0.905,
+      "cv_f1": 0.579,
+      "threshold": 0.8
     }
   },
-  "fraud_rate": 11.77,
-  "dataset_size": 6000,
-  "feature_labels": {
-    "amount": "Transaction amount",
-    "time_gap_minutes": "Minutes since last transaction",
-    "transaction_hour": "Hour of transaction",
-    "merchant_risk": "Merchant risk score",
-    "distance_from_home_km": "Distance from home",
-    "device_score": "Device trust score",
-    "transaction_velocity_24h": "Transactions in last 24h",
-    "previous_declines": "Previous declined transactions",
-    "account_age_days": "Account age in days",
-    "is_foreign": "Foreign transaction",
-    "is_high_risk_country": "High-risk country",
-    "card_present": "Card present"
-  },
-  "feature_ranges": {
-    "amount": {
-      "min": 1,
-      "max": 5000,
-      "step": 1,
-      "default": 1450
-    },
-    "time_gap_minutes": {
-      "min": 0,
-      "max": 1440,
-      "step": 1,
-      "default": 4
-    },
-    "transaction_hour": {
-      "min": 0,
-      "max": 23,
-      "step": 1,
-      "default": 2
-    },
-    "merchant_risk": {
-      "min": 1,
-      "max": 10,
-      "step": 1,
-      "default": 8
-    },
-    "distance_from_home_km": {
-      "min": 0,
-      "max": 5000,
-      "step": 1,
-      "default": 920
-    },
-    "device_score": {
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "default": 18
-    },
-    "transaction_velocity_24h": {
-      "min": 1,
-      "max": 60,
-      "step": 1,
-      "default": 14
-    },
-    "previous_declines": {
-      "min": 0,
-      "max": 10,
-      "step": 1,
-      "default": 3
-    },
-    "account_age_days": {
-      "min": 1,
-      "max": 5000,
-      "step": 1,
-      "default": 180
-    },
-    "is_foreign": {
-      "min": 0,
-      "max": 1,
-      "step": 1,
-      "default": 1
-    },
-    "is_high_risk_country": {
-      "min": 0,
-      "max": 1,
-      "step": 1,
-      "default": 1
-    },
-    "card_present": {
-      "min": 0,
-      "max": 1,
-      "step": 1,
-      "default": 0
-    }
-  },
-  "scenarios": {
-    "safe_purchase": {
-      "label": "Safe grocery purchase",
-      "values": {
-        "amount": 62,
-        "time_gap_minutes": 420,
-        "transaction_hour": 18,
-        "merchant_risk": 2,
-        "distance_from_home_km": 6,
-        "device_score": 88,
-        "transaction_velocity_24h": 2,
-        "previous_declines": 0,
-        "account_age_days": 1460,
-        "is_foreign": 0,
-        "is_high_risk_country": 0,
-        "card_present": 1
-      }
-    },
-    "travel_booking": {
-      "label": "Travel booking",
-      "values": {
-        "amount": 1850,
-        "time_gap_minutes": 190,
-        "transaction_hour": 21,
-        "merchant_risk": 5,
-        "distance_from_home_km": 180,
-        "device_score": 76,
-        "transaction_velocity_24h": 3,
-        "previous_declines": 0,
-        "account_age_days": 980,
-        "is_foreign": 1,
-        "is_high_risk_country": 0,
-        "card_present": 0
-      }
-    },
-    "fraud_attack": {
-      "label": "Suspicious midnight attack",
-      "values": {
-        "amount": 2499,
-        "time_gap_minutes": 3,
-        "transaction_hour": 1,
-        "merchant_risk": 9,
-        "distance_from_home_km": 2100,
-        "device_score": 12,
-        "transaction_velocity_24h": 18,
-        "previous_declines": 4,
-        "account_age_days": 90,
-        "is_foreign": 1,
-        "is_high_risk_country": 1,
-        "card_present": 0
-      }
-    }
+  "dataset_summary": {
+    "indian_rows": 6720,
+    "indian_fraud_rate": 31.65,
+    "european_rows": 25492,
+    "european_fraud_rate": 1.93
   },
   "visuals": {
     "model_comparison": "generated/model_comparison.png",
@@ -180,40 +46,113 @@
   },
   "feature_importance": [
     {
-      "feature": "distance_from_home_km",
-      "label": "Distance from home",
-      "importance": 1.1759
-    },
-    {
-      "feature": "amount",
-      "label": "Transaction amount",
-      "importance": 0.6345
-    },
-    {
-      "feature": "transaction_velocity_24h",
-      "label": "Transactions in last 24h",
-      "importance": 0.4341
-    },
-    {
-      "feature": "account_age_days",
-      "label": "Account age in days",
-      "importance": 0.2422
-    },
-    {
-      "feature": "time_gap_minutes",
-      "label": "Minutes since last transaction",
-      "importance": 0.1975
-    },
-    {
-      "feature": "previous_declines",
+      "feature": "previous_declined_transactions",
       "label": "Previous declined transactions",
-      "importance": 0.1499
+      "importance": 0.5014
+    },
+    {
+      "feature": "device_trust_score",
+      "label": "Device Trust Score",
+      "importance": 0.2088
+    },
+    {
+      "feature": "txn_velocity",
+      "label": "Txn Velocity",
+      "importance": 0.0658
+    },
+    {
+      "feature": "transactions_last_24h",
+      "label": "Transactions in last 24h",
+      "importance": 0.0635
+    },
+    {
+      "feature": "transaction_amount",
+      "label": "Transaction amount",
+      "importance": 0.045
+    },
+    {
+      "feature": "location",
+      "label": "Location",
+      "importance": 0.0369
     }
   ],
   "confusion_matrix": {
-    "true_negative": 1059,
-    "false_positive": 0,
-    "false_negative": 29,
-    "true_positive": 112
+    "true_negative": 896,
+    "false_positive": 23,
+    "false_negative": 48,
+    "true_positive": 377
+  },
+  "scenarios": {
+    "safe_purchase": {
+      "label": "Safe local purchase",
+      "values": {
+        "transaction_amount": 2400,
+        "transaction_hour": 15,
+        "location": "Pune",
+        "merchant_category": "POS",
+        "card_type": "Visa",
+        "transactions_last_24h": 2,
+        "previous_declined_transactions": 0,
+        "distance_from_home": 6,
+        "foreign_transaction": "0",
+        "card_present": "1"
+      }
+    },
+    "digital_anomaly": {
+      "label": "Digital anomaly",
+      "values": {
+        "transaction_amount": 8600,
+        "transaction_hour": 2,
+        "location": "Delhi",
+        "merchant_category": "Digital",
+        "card_type": "MasterCard",
+        "transactions_last_24h": 11,
+        "previous_declined_transactions": 3,
+        "distance_from_home": 940,
+        "foreign_transaction": "1",
+        "card_present": "0"
+      }
+    },
+    "travel_spike": {
+      "label": "Travel spike",
+      "values": {
+        "transaction_amount": 12500,
+        "transaction_hour": 23,
+        "location": "Bangalore",
+        "merchant_category": "Digital",
+        "card_type": "Rupay",
+        "transactions_last_24h": 14,
+        "previous_declined_transactions": 2,
+        "distance_from_home": 1450,
+        "foreign_transaction": "1",
+        "card_present": "0"
+      }
+    }
+  },
+  "form_options": {
+    "location": [
+      "Ahmedabad",
+      "Bangalore",
+      "Chennai",
+      "Delhi",
+      "Hyderabad",
+      "Jaipur",
+      "Kolkata",
+      "Mumbai",
+      "Pune",
+      "Surat",
+      "Unknown"
+    ],
+    "merchant_category": [
+      "Digital",
+      "POS",
+      "Unknown"
+    ],
+    "card_type": [
+      "MasterCard",
+      "Rupay",
+      "Unknown",
+      "Visa"
+    ]
   }
 }

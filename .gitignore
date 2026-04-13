@@ -1,0 +1,5 @@
+__pycache__/
+.pytest_cache/
+.matplotlib/
+.DS_Store
+artifacts/prediction.log

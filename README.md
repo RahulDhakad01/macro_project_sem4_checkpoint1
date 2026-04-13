@@ -1,19 +1,20 @@
 # Credit Card Fraud Detection System
 
-A demo-ready machine learning project that predicts whether a credit card transaction is fraudulent in real time through a web application.
+A hybrid fraud detection platform that combines Indian transaction behavior modeling with European card-fraud anomaly detection inside a single web application.
 
 ## What this project includes
 
-- Flask web application with a polished frontend
-- Machine learning training pipeline using:
-  - Logistic Regression + SMOTE
-  - Random Forest
-  - Extra Trees
-- Synthetic transaction dataset generation for a self-contained demo
-- Model comparison using precision, recall, F1-score, ROC-AUC, average precision, and cross-validation
-- Real-time fraud prediction API
-- Generated evaluation visuals for the presentation
-- Sample transaction scenarios for quick classroom demonstration
+- Flask web application with a responsive frontend for desktop, tablet, and phone
+- Hybrid machine learning pipeline using:
+  - Indian behavioral fraud model
+  - Global card-pattern fraud model
+  - Fusion scoring layer
+- Real dataset training using:
+  - `Updated_Inclusive_Indian_Online_Scam_Dataset (1).csv`
+  - `creditcard.csv` from the European Card Fraud Dataset
+- Real-time fraud prediction API with dynamic reason generation
+- Separate metrics page for architecture, charts, confusion matrix, feature drivers, and methodology
+- Render deployment blueprint via `render.yaml`
 
 ## Project structure
 
@@ -22,9 +23,11 @@ sem_4/
 ├── app.py
 ├── fraud_model.py
 ├── requirements.txt
+├── render.yaml
 ├── test_app.py
 ├── templates/
-│   └── index.html
+│   ├── index.html
+│   └── metrics.html
 └── static/
     ├── app.js
     └── styles.css
@@ -51,21 +54,23 @@ python3 app.py
 http://127.0.0.1:5000
 ```
 
-## Demo flow suggestion
+## Deployment on Render
 
-1. Show the homepage and explain the problem statement.
-2. Open the analytics section and explain the selected model, tuned threshold, and cross-validated F1-score.
-3. Use the built-in scenarios:
-   - Safe grocery purchase
-   - Travel booking
-   - Suspicious midnight attack
-4. Explain the fraud probability, confidence, and top risk factors shown after prediction.
-5. Show the generated charts for model comparison, confusion matrix, and feature importance.
+1. Push this repository to GitHub.
+2. In Render, create a new Blueprint or Web Service from the repo.
+3. Render will read `render.yaml`, install dependencies, and start the app with Gunicorn.
+4. Use `/api/health` as the health endpoint and `/metrics` for the model insights page.
+
+## Key pages
+
+- `/` — unified fraud detector
+- `/metrics` — model metrics, evidence, confusion matrix, feature importance, and methodology
+- `/api/health` — health check
+- `/api/predict` — fraud prediction API
 
 ## Notes for presentation
 
-- The system is self-contained and does not depend on an external dataset.
-- Fraud is treated as an imbalanced classification problem.
-- The pipeline uses SMOTE, class balancing, threshold tuning, and model comparison before deployment.
-- The app automatically trains and stores the best-performing model on first run.
-- The result panel also gives explanation-style risk drivers to make the output easier to justify during viva or presentation.
+- The deployed app runs from prebuilt model artifacts, so production does not depend on your local CSV paths.
+- The Indian and European models are trained independently and combined through a weighted fusion layer.
+- The prediction response returns a single fraud score, risk level, and dynamic explanation list.
+- The interface is responsive and optimized for smaller screens as well as desktop layouts.

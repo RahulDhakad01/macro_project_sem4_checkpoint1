@@ -15,7 +15,7 @@
       href="{{ url_for('static', filename='styles.css') }}"
     />
   </head>
-  <body>
+  <body class="home-page">
     <div class="page-shell">
       <header class="hero">
         <nav class="topbar">
@@ -31,40 +31,40 @@
 
         <div class="hero-grid">
           <section class="hero-copy">
-            <p class="eyebrow">College macro project • real-time fraud screening</p>
+            <p class="eyebrow">Hybrid fraud intelligence platform</p>
             <h1>Detect risky card transactions before they become a loss.</h1>
             <p class="hero-text">
-              A demo-ready web application that trains fraud classifiers, compares
-              model performance, and predicts suspicious transactions instantly
-              from user-entered payment behavior.
+              Hybrid fraud intelligence for card transactions, combining regional
+              behavior signals and global card-usage anomalies into a single live
+              risk decision.
             </p>
             <div class="hero-actions">
               <a href="#predictor" class="button primary">Try live detector</a>
-              <a href="#models" class="button secondary">View model metrics</a>
+              <a href="{{ url_for('metrics') }}" class="button secondary">View model metrics</a>
             </div>
           </section>
 
           <aside class="hero-panel">
-            <p class="panel-label">Selected production model</p>
-            <h2>{{ dashboard.selected_model.name }}</h2>
+            <p class="panel-label">Active detection system</p>
+            <h2>{{ dashboard.system_name }}</h2>
             <div class="stat-strip">
               <div>
-                <span>F1-score</span>
-                <strong>{{ dashboard.selected_model.metrics.f1 }}</strong>
+                <span>Indian rows</span>
+                <strong>{{ dashboard.datasets.indian_rows }}</strong>
               </div>
               <div>
-                <span>Precision</span>
-                <strong>{{ dashboard.selected_model.metrics.precision }}</strong>
+                <span>European rows</span>
+                <strong>{{ dashboard.datasets.european_rows }}</strong>
               </div>
               <div>
-                <span>Recall</span>
-                <strong>{{ dashboard.selected_model.metrics.recall }}</strong>
+                <span>Fusion</span>
+                <strong>{{ (dashboard.fusion_weights.indian * 100) | int }}/{{ (dashboard.fusion_weights.global * 100) | int }}</strong>
               </div>
             </div>
             <ul class="hero-notes">
-              <li>Trained on {{ dashboard.dataset_size }} simulated transactions</li>
-              <li>Fraud prevalence modeled at {{ dashboard.fraud_rate }}%</li>
-              <li>Web API returns prediction, confidence, and risk drivers</li>
+              <li>Uses the Indian scam dataset plus the European Kaggle card fraud dataset</li>
+              <li>One unified input form feeds two separate fraud models</li>
+              <li>The backend returns one fused prediction with dynamic reasons</li>
             </ul>
           </aside>
         </div>
@@ -74,42 +74,43 @@
         <section class="section intro">
           <div>
             <p class="section-kicker">System overview</p>
-            <h2>Built for explainable demo flow, not just a screenshot.</h2>
+            <h2>Hybrid risk intelligence for real-time transaction screening.</h2>
           </div>
           <div class="intro-copy">
             <p>
-              The system follows a practical fraud-detection pipeline: simulated
-              transaction data generation, preprocessing, model training,
-              evaluation, best-model selection, and instant prediction through a
-              web interface.
+              The system now follows a hybrid fraud-detection pipeline: regional
+              behavior learning from the Indian dataset, global card-pattern
+              learning from the European dataset, and a fusion layer that combines
+              both views into one decision.
             </p>
             <p>
-              It favors stability and clarity so you can explain the methodology
-              confidently in class and still show a working end-to-end product.
+              A unified scoring engine converts those signals into one risk score,
+              one risk level, and one dynamic explanation stream for every
+              transaction profile submitted through the interface.
             </p>
           </div>
         </section>
 
         <section class="section analytics-ribbon">
           <article>
-            <span>Selected model</span>
-            <strong>{{ dashboard.selected_model.name }}</strong>
-            <p>Best deployment candidate after threshold tuning and comparison.</p>
+            <span>System</span>
+            <strong>Hybrid</strong>
+            <p>Indian behavioral model plus global card-pattern model working together.</p>
           </article>
           <article>
-            <span>Cross-validated F1</span>
-            <strong>{{ dashboard.selected_model.metrics.cv_f1 }}</strong>
-            <p>Average F1 over stratified folds to reduce single-split bias.</p>
+            <span>Indian CV F1</span>
+            <strong>{{ dashboard.comparison[0].metrics.cv_f1 }}</strong>
+            <p>Cross-validated regional model strength on the Indian dataset.</p>
           </article>
           <article>
-            <span>Average precision</span>
-            <strong>{{ dashboard.selected_model.metrics.avg_precision }}</strong>
-            <p>Useful for imbalanced fraud datasets where ranking quality matters.</p>
+            <span>Global ROC-AUC</span>
+            <strong>{{ dashboard.comparison[1].metrics.roc_auc }}</strong>
+            <p>Global model quality on highly imbalanced European card data.</p>
           </article>
           <article>
-            <span>Decision threshold</span>
-            <strong>{{ dashboard.selected_model.metrics.threshold }}</strong>
-            <p>Validation-tuned threshold instead of a generic 0.50 cutoff.</p>
+            <span>Fusion weights</span>
+            <strong>{{ dashboard.fusion_weights.indian }}/{{ dashboard.fusion_weights.global }}</strong>
+            <p>Final fraud score = 0.6 Indian probability + 0.4 global probability.</p>
           </article>
         </section>
 
@@ -117,7 +118,7 @@
           <div class="workspace-header">
             <div>
               <p class="section-kicker">Live fraud detector</p>
-              <h2>Enter transaction details and get an instant fraud decision.</h2>
+              <h2>Enter one unified transaction profile and get a fused fraud decision.</h2>
             </div>
             <div class="scenario-row">
               {% for key, scenario in dashboard.scenarios.items() %}
@@ -138,6 +139,15 @@
                 {% for feature in dashboard.features %}
                 <label class="field">
                   <span>{{ feature.label }}</span>
+                  {% if feature.input_type == "select" %}
+                  <select name="{{ feature.name }}" required>
+                    {% for option in feature.options %}
+                    <option value="{{ option.value }}" {% if option.value == feature.default %}selected{% endif %}>
+                      {{ option.label }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  {% else %}
                   <input
                     name="{{ feature.name }}"
                     type="number"
@@ -147,6 +157,7 @@
                     value="{{ feature.default }}"
                     required
                   />
+                  {% endif %}
                 </label>
                 {% endfor %}
               </div>
@@ -155,7 +166,7 @@
                 <button type="reset" class="button secondary subtle">Reset</button>
               </div>
               <p class="form-note">
-                Binary fields use <strong>1 = Yes</strong> and <strong>0 = No</strong>.
+                One form powers the whole system. Category fields come from the Indian dataset, and binary fields still use <strong>0 = No</strong> and <strong>1 = Yes</strong>.
               </p>
             </form>
 
@@ -193,141 +204,6 @@
                 </ul>
               </div>
             </aside>
-          </div>
-        </section>
-
-        <section class="section models" id="models">
-          <div class="section-heading">
-            <p class="section-kicker">Model evaluation</p>
-            <h2>Two classifiers trained, scored, and compared for deployment.</h2>
-          </div>
-          <div class="model-grid">
-            {% for item in dashboard.comparison %}
-            <article class="model-card {% if item.selected %}selected{% endif %}">
-              <div class="model-title-row">
-                <h3>{{ item.name }}</h3>
-                {% if item.selected %}<span class="pill">Selected</span>{% endif %}
-              </div>
-              <div class="metric-list">
-                <div><span>Precision</span><strong>{{ item.metrics.precision }}</strong></div>
-                <div><span>Recall</span><strong>{{ item.metrics.recall }}</strong></div>
-                <div><span>F1-score</span><strong>{{ item.metrics.f1 }}</strong></div>
-                <div><span>ROC-AUC</span><strong>{{ item.metrics.roc_auc }}</strong></div>
-                <div><span>Avg precision</span><strong>{{ item.metrics.avg_precision }}</strong></div>
-                <div><span>CV F1</span><strong>{{ item.metrics.cv_f1 }}</strong></div>
-              </div>
-            </article>
-            {% endfor %}
-          </div>
-        </section>
-
-        <section class="section visual-lab">
-          <div class="section-heading">
-            <p class="section-kicker">Machine learning evidence</p>
-            <h2>Charts generated from the training pipeline for a stronger project presentation.</h2>
-          </div>
-
-          <div class="visual-grid">
-            <article class="visual-card wide">
-              <div class="visual-copy">
-                <p class="panel-label">Leaderboard</p>
-                <h3>Model comparison across core fraud metrics</h3>
-                <p>
-                  Precision, recall, F1-score, and ROC-AUC are generated after
-                  model training so you can explain why the selected model was
-                  deployed.
-                </p>
-              </div>
-              <img
-                src="{{ url_for('static', filename=dashboard.visuals.model_comparison) }}"
-                alt="Model comparison chart"
-              />
-            </article>
-
-            <article class="visual-card">
-              <div class="visual-copy">
-                <p class="panel-label">Confusion matrix</p>
-                <h3>How the selected model separates fraud from legitimate traffic</h3>
-                <p>
-                  True positives and false positives are visible both numerically
-                  and visually for better discussion during viva.
-                </p>
-              </div>
-              <img
-                src="{{ url_for('static', filename=dashboard.visuals.confusion_matrix) }}"
-                alt="Confusion matrix chart"
-              />
-              <div class="mini-stats">
-                <span>TP {{ dashboard.confusion_matrix.true_positive }}</span>
-                <span>TN {{ dashboard.confusion_matrix.true_negative }}</span>
-                <span>FP {{ dashboard.confusion_matrix.false_positive }}</span>
-                <span>FN {{ dashboard.confusion_matrix.false_negative }}</span>
-              </div>
-            </article>
-
-            <article class="visual-card">
-              <div class="visual-copy">
-                <p class="panel-label">Feature drivers</p>
-                <h3>Most influential variables in the deployed model</h3>
-                <p>
-                  This helps connect the prediction output with actual transaction
-                  behavior such as amount, distance, device trust, and velocity.
-                </p>
-              </div>
-              <img
-                src="{{ url_for('static', filename=dashboard.visuals.feature_importance) }}"
-                alt="Feature importance chart"
-              />
-              <ul class="importance-list">
-                {% for item in dashboard.feature_importance %}
-                <li>
-                  <span>{{ item.label }}</span>
-                  <strong>{{ item.importance }}</strong>
-                </li>
-                {% endfor %}
-              </ul>
-            </article>
-          </div>
-        </section>
-
-        <section class="section methodology">
-          <div class="section-heading">
-            <p class="section-kicker">Methodology</p>
-            <h2>Simple enough to explain, robust enough to demonstrate live.</h2>
-          </div>
-          <div class="method-grid">
-            <div>
-              <span>01</span>
-              <h3>Preprocessing</h3>
-              <p>
-                Numeric behavior features are standardized for Logistic Regression,
-                while binary indicators remain easy to interpret.
-              </p>
-            </div>
-            <div>
-              <span>02</span>
-              <h3>Imbalance handling</h3>
-              <p>
-                Fraud is intentionally rare in the dataset, and the pipeline uses
-                class balancing plus SMOTE to stay sensitive to suspicious cases.
-              </p>
-            </div>
-            <div>
-              <span>03</span>
-              <h3>Evaluation and tuning</h3>
-              <p>
-                Precision, recall, F1-score, ROC-AUC, average precision, and
-                cross-validation are used before selecting a tuned threshold.
-              </p>
-            </div>
-            <div>
-              <span>04</span>
-              <h3>Deployment</h3>
-              <p>
-                The best model is persisted and served through a Flask API that the
-                UI calls in real time during the demo.
-              </p>
-            </div>
           </div>
         </section>
       </main>
