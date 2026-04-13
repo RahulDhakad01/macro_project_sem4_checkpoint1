@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sentinel Fraud Shield</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <nav class="topbar">
+          <div class="brand">
+            <span class="brand-mark"></span>
+            <div>
+              <p>Sentinel Fraud Shield</p>
+              <span>ML Credit Card Fraud Detection</span>
+            </div>
+          </div>
+          <a href="#predictor" class="hero-link">Launch prediction</a>
+        </nav>
+
+        <div class="hero-grid">
+          <section class="hero-copy">
+            <p class="eyebrow">College macro project • real-time fraud screening</p>
+            <h1>Detect risky card transactions before they become a loss.</h1>
+            <p class="hero-text">
+              A demo-ready web application that trains fraud classifiers, compares
+              model performance, and predicts suspicious transactions instantly
+              from user-entered payment behavior.
+            </p>
+            <div class="hero-actions">
+              <a href="#predictor" class="button primary">Try live detector</a>
+              <a href="#models" class="button secondary">View model metrics</a>
+            </div>
+          </section>
+
+          <aside class="hero-panel">
+            <p class="panel-label">Selected production model</p>
+            <h2>{{ dashboard.selected_model.name }}</h2>
+            <div class="stat-strip">
+              <div>
+                <span>F1-score</span>
+                <strong>{{ dashboard.selected_model.metrics.f1 }}</strong>
+              </div>
+              <div>
+                <span>Precision</span>
+                <strong>{{ dashboard.selected_model.metrics.precision }}</strong>
+              </div>
+              <div>
+                <span>Recall</span>
+                <strong>{{ dashboard.selected_model.metrics.recall }}</strong>
+              </div>
+            </div>
+            <ul class="hero-notes">
+              <li>Trained on {{ dashboard.dataset_size }} simulated transactions</li>
+              <li>Fraud prevalence modeled at {{ dashboard.fraud_rate }}%</li>
+              <li>Web API returns prediction, confidence, and risk drivers</li>
+            </ul>
+          </aside>
+        </div>
+      </header>
+
+      <main>
+        <section class="section intro">
+          <div>
+            <p class="section-kicker">System overview</p>
+            <h2>Built for explainable demo flow, not just a screenshot.</h2>
+          </div>
+          <div class="intro-copy">
+            <p>
+              The system follows a practical fraud-detection pipeline: simulated
+              transaction data generation, preprocessing, model training,
+              evaluation, best-model selection, and instant prediction through a
+              web interface.
+            </p>
+            <p>
+              It favors stability and clarity so you can explain the methodology
+              confidently in class and still show a working end-to-end product.
+            </p>
+          </div>
+        </section>
+
+        <section class="section analytics-ribbon">
+          <article>
+            <span>Selected model</span>
+            <strong>{{ dashboard.selected_model.name }}</strong>
+            <p>Best deployment candidate after threshold tuning and comparison.</p>
+          </article>
+          <article>
+            <span>Cross-validated F1</span>
+            <strong>{{ dashboard.selected_model.metrics.cv_f1 }}</strong>
+            <p>Average F1 over stratified folds to reduce single-split bias.</p>
+          </article>
+          <article>
+            <span>Average precision</span>
+            <strong>{{ dashboard.selected_model.metrics.avg_precision }}</strong>
+            <p>Useful for imbalanced fraud datasets where ranking quality matters.</p>
+          </article>
+          <article>
+            <span>Decision threshold</span>
+            <strong>{{ dashboard.selected_model.metrics.threshold }}</strong>
+            <p>Validation-tuned threshold instead of a generic 0.50 cutoff.</p>
+          </article>
+        </section>
+
+        <section class="section workspace" id="predictor">
+          <div class="workspace-header">
+            <div>
+              <p class="section-kicker">Live fraud detector</p>
+              <h2>Enter transaction details and get an instant fraud decision.</h2>
+            </div>
+            <div class="scenario-row">
+              {% for key, scenario in dashboard.scenarios.items() %}
+              <button
+                type="button"
+                class="scenario-button"
+                data-scenario="{{ key }}"
+              >
+                {{ scenario.label }}
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="workspace-grid">
+            <form id="prediction-form" class="predictor-form">
+              <div class="form-grid">
+                {% for feature in dashboard.features %}
+                <label class="field">
+                  <span>{{ feature.label }}</span>
+                  <input
+                    name="{{ feature.name }}"
+                    type="number"
+                    min="{{ feature.min }}"
+                    max="{{ feature.max }}"
+                    step="{{ feature.step }}"
+                    value="{{ feature.default }}"
+                    required
+                  />
+                </label>
+                {% endfor %}
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="button primary">Predict now</button>
+                <button type="reset" class="button secondary subtle">Reset</button>
+              </div>
+              <p class="form-note">
+                Binary fields use <strong>1 = Yes</strong> and <strong>0 = No</strong>.
+              </p>
+            </form>
+
+            <aside class="result-panel" id="result-panel">
+              <p class="panel-label">Prediction result</p>
+              <h3 id="result-status">Waiting for analysis</h3>
+              <p id="result-summary" class="result-summary">
+                Submit the transaction to see fraud probability, confidence, and
+                the top reasons behind the decision.
+              </p>
+
+              <div class="result-metrics">
+                <div>
+                  <span>Fraud probability</span>
+                  <strong id="result-probability">--</strong>
+                </div>
+                <div>
+                  <span>Confidence</span>
+                  <strong id="result-confidence">--</strong>
+                </div>
+                <div>
+                  <span>Risk level</span>
+                  <strong id="result-risk">--</strong>
+                </div>
+              </div>
+
+              <div class="probability-meter">
+                <div class="probability-meter-fill" id="result-meter"></div>
+              </div>
+
+              <div class="factor-box">
+                <p class="panel-label">Top risk factors</p>
+                <ul id="result-factors">
+                  <li>Model explanation will appear here after prediction.</li>
+                </ul>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="section models" id="models">
+          <div class="section-heading">
+            <p class="section-kicker">Model evaluation</p>
+            <h2>Two classifiers trained, scored, and compared for deployment.</h2>
+          </div>
+          <div class="model-grid">
+            {% for item in dashboard.comparison %}
+            <article class="model-card {% if item.selected %}selected{% endif %}">
+              <div class="model-title-row">
+                <h3>{{ item.name }}</h3>
+                {% if item.selected %}<span class="pill">Selected</span>{% endif %}
+              </div>
+              <div class="metric-list">
+                <div><span>Precision</span><strong>{{ item.metrics.precision }}</strong></div>
+                <div><span>Recall</span><strong>{{ item.metrics.recall }}</strong></div>
+                <div><span>F1-score</span><strong>{{ item.metrics.f1 }}</strong></div>
+                <div><span>ROC-AUC</span><strong>{{ item.metrics.roc_auc }}</strong></div>
+                <div><span>Avg precision</span><strong>{{ item.metrics.avg_precision }}</strong></div>
+                <div><span>CV F1</span><strong>{{ item.metrics.cv_f1 }}</strong></div>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+        </section>
+
+        <section class="section visual-lab">
+          <div class="section-heading">
+            <p class="section-kicker">Machine learning evidence</p>
+            <h2>Charts generated from the training pipeline for a stronger project presentation.</h2>
+          </div>
+
+          <div class="visual-grid">
+            <article class="visual-card wide">
+              <div class="visual-copy">
+                <p class="panel-label">Leaderboard</p>
+                <h3>Model comparison across core fraud metrics</h3>
+                <p>
+                  Precision, recall, F1-score, and ROC-AUC are generated after
+                  model training so you can explain why the selected model was
+                  deployed.
+                </p>
+              </div>
+              <img
+                src="{{ url_for('static', filename=dashboard.visuals.model_comparison) }}"
+                alt="Model comparison chart"
+              />
+            </article>
+
+            <article class="visual-card">
+              <div class="visual-copy">
+                <p class="panel-label">Confusion matrix</p>
+                <h3>How the selected model separates fraud from legitimate traffic</h3>
+                <p>
+                  True positives and false positives are visible both numerically
+                  and visually for better discussion during viva.
+                </p>
+              </div>
+              <img
+                src="{{ url_for('static', filename=dashboard.visuals.confusion_matrix) }}"
+                alt="Confusion matrix chart"
+              />
+              <div class="mini-stats">
+                <span>TP {{ dashboard.confusion_matrix.true_positive }}</span>
+                <span>TN {{ dashboard.confusion_matrix.true_negative }}</span>
+                <span>FP {{ dashboard.confusion_matrix.false_positive }}</span>
+                <span>FN {{ dashboard.confusion_matrix.false_negative }}</span>
+              </div>
+            </article>
+
+            <article class="visual-card">
+              <div class="visual-copy">
+                <p class="panel-label">Feature drivers</p>
+                <h3>Most influential variables in the deployed model</h3>
+                <p>
+                  This helps connect the prediction output with actual transaction
+                  behavior such as amount, distance, device trust, and velocity.
+                </p>
+              </div>
+              <img
+                src="{{ url_for('static', filename=dashboard.visuals.feature_importance) }}"
+                alt="Feature importance chart"
+              />
+              <ul class="importance-list">
+                {% for item in dashboard.feature_importance %}
+                <li>
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.importance }}</strong>
+                </li>
+                {% endfor %}
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section class="section methodology">
+          <div class="section-heading">
+            <p class="section-kicker">Methodology</p>
+            <h2>Simple enough to explain, robust enough to demonstrate live.</h2>
+          </div>
+          <div class="method-grid">
+            <div>
+              <span>01</span>
+              <h3>Preprocessing</h3>
+              <p>
+                Numeric behavior features are standardized for Logistic Regression,
+                while binary indicators remain easy to interpret.
+              </p>
+            </div>
+            <div>
+              <span>02</span>
+              <h3>Imbalance handling</h3>
+              <p>
+                Fraud is intentionally rare in the dataset, and the pipeline uses
+                class balancing plus SMOTE to stay sensitive to suspicious cases.
+              </p>
+            </div>
+            <div>
+              <span>03</span>
+              <h3>Evaluation and tuning</h3>
+              <p>
+                Precision, recall, F1-score, ROC-AUC, average precision, and
+                cross-validation are used before selecting a tuned threshold.
+              </p>
+            </div>
+            <div>
+              <span>04</span>
+              <h3>Deployment</h3>
+              <p>
+                The best model is persisted and served through a Flask API that the
+                UI calls in real time during the demo.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      window.APP_DATA = {{ dashboard.scenarios | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
