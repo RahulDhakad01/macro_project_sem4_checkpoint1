@@ -28,6 +28,11 @@ def create_app() -> Flask:
         payload = service.dashboard_payload()
         return render_template("metrics.html", dashboard=payload)
 
+    @app.get("/about")
+    def about():
+        payload = service.dashboard_payload()
+        return render_template("about.html", dashboard=payload)
+
     @app.get("/api/health")
     def health():
         model_summary = service.model_summary()

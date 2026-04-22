@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <link
@@ -15,22 +15,18 @@
       href="{{ url_for('static', filename='styles.css') }}"
     />
   </head>
-  <body class="metrics-page">
-    <div class="page-shell">
-      <header class="hero hero-compact">
-        <nav class="topbar">
-          <div class="brand">
-            <span class="brand-mark"></span>
-            <div>
-              <p>Sentinel Fraud Shield</p>
-              <span>Model metrics and validation</span>
-            </div>
-          </div>
-          <a href="{{ url_for('index') }}" class="hero-link">Back to detector</a>
-        </nav>
+  <body class="app-page metrics-page">
+    <div class="ambient-orb orb-a"></div>
+    <div class="ambient-orb orb-b"></div>
+    <div class="ambient-orb orb-c"></div>
 
-        <div class="metrics-hero">
-          <div>
+    <div class="app-shell">
+      {% set active_page = 'metrics' %}
+      {% include '_sidebar.html' %}
+
+      <main class="content-area">
+        <header class="page-hero page-hero-compact">
+          <section class="hero-copy">
             <p class="eyebrow">Validation center</p>
             <h1>Model performance, evidence, and detection logic.</h1>
             <p class="hero-text">
@@ -38,51 +34,97 @@
               models, combined through a fusion layer that delivers one
               production-style risk decision.
             </p>
-          </div>
-          <div class="analytics-ribbon">
-            <article>
-              <span>Indian CV F1</span>
-              <strong>{{ dashboard.comparison[0].metrics.cv_f1 }}</strong>
-              <p>Cross-validated behavioral signal quality on Indian fraud data.</p>
-            </article>
-            <article>
-              <span>Global ROC-AUC</span>
-              <strong>{{ dashboard.comparison[1].metrics.roc_auc }}</strong>
-              <p>Card anomaly separation strength on the European dataset.</p>
-            </article>
-            <article>
-              <span>Fusion weights</span>
-              <strong>{{ dashboard.fusion_weights.indian }}/{{ dashboard.fusion_weights.global }}</strong>
-              <p>Balanced scoring between behavioral and global fraud patterns.</p>
-            </article>
-            <article>
-              <span>Indian fraud rate</span>
-              <strong>{{ dashboard.datasets.indian_fraud_rate }}%</strong>
-              <p>Observed fraud incidence in the cleaned Indian behavioral dataset.</p>
-            </article>
-          </div>
-        </div>
-      </header>
+          </section>
 
-      <main>
+          <aside class="metric-stack">
+            <article class="metric-spotlight">
+              <div class="metric-spotlight-top">
+                <span>Indian CV F1</span>
+                <em>Strong</em>
+              </div>
+              <strong class="count-up" data-count="{{ dashboard.comparison[0].metrics.cv_f1 }}" data-decimals="3">0.000</strong>
+              <div class="progress-track"><span style="width: {{ dashboard.comparison[0].metrics.cv_f1 * 100 }}%"></span></div>
+            </article>
+            <article class="metric-spotlight">
+              <div class="metric-spotlight-top">
+                <span>Global ROC-AUC</span>
+                <em>High</em>
+              </div>
+              <strong class="count-up" data-count="{{ dashboard.comparison[1].metrics.roc_auc }}" data-decimals="3">0.000</strong>
+              <div class="progress-track"><span style="width: {{ dashboard.comparison[1].metrics.roc_auc * 100 }}%"></span></div>
+            </article>
+            <article class="metric-spotlight">
+              <div class="metric-spotlight-top">
+                <span>Fusion weights</span>
+                <em>Stable</em>
+              </div>
+              <strong>{{ dashboard.fusion_weights.indian }}/{{ dashboard.fusion_weights.global }}</strong>
+              <p class="metric-footnote">
+                {{ dashboard.fusion_weights.indian }} Indian · {{ dashboard.fusion_weights.global }} Global
+              </p>
+              <div class="progress-dual">
+                <span style="width: {{ dashboard.fusion_weights.indian * 100 }}%"></span>
+                <span style="width: {{ dashboard.fusion_weights.global * 100 }}%"></span>
+              </div>
+            </article>
+            <article class="metric-spotlight">
+              <div class="metric-spotlight-top">
+                <span>Indian fraud rate</span>
+                <em>Reference</em>
+              </div>
+              <strong class="count-up" data-count="{{ dashboard.datasets.indian_fraud_rate }}" data-decimals="2" data-suffix="%">0.00%</strong>
+              <div class="progress-track"><span style="width: {{ dashboard.datasets.indian_fraud_rate }}%"></span></div>
+            </article>
+          </aside>
+        </header>
+
         <section class="section models" id="models">
-          <div class="section-heading">
-            <p class="section-kicker">Dual-model architecture</p>
-            <h2>Two specialized models learn different fraud patterns before the fusion score is computed.</h2>
+          <div class="section-intro">
+            <div>
+              <p class="section-kicker">Dual-model architecture</p>
+              <h2>Two specialized models learn different fraud patterns before the fusion score is computed.</h2>
+            </div>
+            <div class="section-copy">
+              <p>
+                The Indian model captures transaction behavior from the regional
+                dataset, while the global model captures card-level anomaly
+                patterns from the European fraud dataset.
+              </p>
+            </div>
           </div>
+
           <div class="model-grid">
             {% for item in dashboard.comparison %}
             <article class="model-card {% if item.selected %}selected{% endif %}">
               <div class="model-title-row">
                 <h3>{{ item.name }}</h3>
+                <span class="pill">{% if item.metrics.f1 >= 0.85 %}High confidence{% else %}Stable signal{% endif %}</span>
               </div>
               <div class="metric-list">
-                <div><span>Precision</span><strong>{{ item.metrics.precision }}</strong></div>
-                <div><span>Recall</span><strong>{{ item.metrics.recall }}</strong></div>
-                <div><span>F1-score</span><strong>{{ item.metrics.f1 }}</strong></div>
-                <div><span>ROC-AUC</span><strong>{{ item.metrics.roc_auc }}</strong></div>
-                <div><span>Avg precision</span><strong>{{ item.metrics.avg_precision }}</strong></div>
-                <div><span>CV F1</span><strong>{{ item.metrics.cv_f1 }}</strong></div>
+                <div>
+                  <span>Precision</span>
+                  <strong class="count-up" data-count="{{ item.metrics.precision }}" data-decimals="3">0.000</strong>
+                </div>
+                <div>
+                  <span>Recall</span>
+                  <strong class="count-up" data-count="{{ item.metrics.recall }}" data-decimals="3">0.000</strong>
+                </div>
+                <div>
+                  <span>F1-score</span>
+                  <strong class="count-up" data-count="{{ item.metrics.f1 }}" data-decimals="3">0.000</strong>
+                </div>
+                <div>
+                  <span>ROC-AUC</span>
+                  <strong class="count-up" data-count="{{ item.metrics.roc_auc }}" data-decimals="3">0.000</strong>
+                </div>
+                <div>
+                  <span>Avg precision</span>
+                  <strong class="count-up" data-count="{{ item.metrics.avg_precision }}" data-decimals="3">0.000</strong>
+                </div>
+                <div>
+                  <span>CV F1</span>
+                  <strong class="count-up" data-count="{{ item.metrics.cv_f1 }}" data-decimals="3">0.000</strong>
+                </div>
               </div>
             </article>
             {% endfor %}
@@ -90,20 +132,29 @@
         </section>
 
         <section class="section visual-lab">
-          <div class="section-heading">
-            <p class="section-kicker">Machine learning evidence</p>
-            <h2>Training artifacts, confusion analysis, and feature importance generated directly from the pipeline.</h2>
+          <div class="section-intro">
+            <div>
+              <p class="section-kicker">Machine learning evidence</p>
+              <h2>Training artifacts, confusion analysis, and feature importance generated directly from the pipeline.</h2>
+            </div>
+            <div class="section-copy">
+              <p>
+                These visuals summarize comparative model behavior, classification
+                outcomes, and the dominant behavioral variables used by the
+                Indian model.
+              </p>
+            </div>
           </div>
 
           <div class="visual-grid">
             <article class="visual-card wide">
               <div class="visual-copy">
-                <p class="panel-label">Leaderboard</p>
-                <h3>Comparative performance of the Indian and global models</h3>
+                <p class="panel-label">Performance comparison</p>
+                <h3>Comparative view of the Indian and global models</h3>
                 <p>
-                  Precision, recall, F1-score, and ROC-AUC are plotted from the
-                  trained models to show how each contributes to the final
-                  hybrid scoring engine.
+                  Precision, recall, F1-score, and ROC-AUC are plotted together
+                  to show how both models contribute different strengths to the
+                  final hybrid system.
                 </p>
               </div>
               <img
@@ -115,11 +166,10 @@
             <article class="visual-card">
               <div class="visual-copy">
                 <p class="panel-label">Confusion matrix</p>
-                <h3>Indian behavioral model classification outcomes</h3>
+                <h3>Indian model classification outcomes</h3>
                 <p>
-                  The confusion matrix makes the fraud-versus-legitimate
-                  separation visible and gives a quick summary of operational
-                  detection quality.
+                  A clear view of true positives, true negatives, false positives,
+                  and false negatives from the held-out behavioral test set.
                 </p>
               </div>
               <img
@@ -137,10 +187,11 @@
             <article class="visual-card">
               <div class="visual-copy">
                 <p class="panel-label">Feature drivers</p>
-                <h3>Top behavioral variables influencing the Indian model</h3>
+                <h3>Top behavioral variables influencing risk</h3>
                 <p>
-                  These feature drivers highlight which variables most strongly
-                  influence fraud probability in the behavioral model.
+                  These features have the strongest influence on the Indian
+                  behavioral model and help explain why certain transactions are
+                  flagged.
                 </p>
               </div>
               <img
@@ -158,52 +209,9 @@
             </article>
           </div>
         </section>
-
-        <section class="section methodology">
-          <div class="section-heading">
-            <p class="section-kicker">Methodology</p>
-            <h2>Engineered features, categorical encoding, validation, and real-time fusion delivery.</h2>
-          </div>
-          <div class="method-grid">
-            <div>
-              <span>01</span>
-              <h3>Unified input schema</h3>
-              <p>
-                One common transaction form captures amount, location, merchant
-                category, card type, behavior velocity, distance, and card
-                presence signals.
-              </p>
-            </div>
-            <div>
-              <span>02</span>
-              <h3>Feature engineering</h3>
-              <p>
-                Derived fields such as `is_night`, `high_amount`,
-                `location_change`, and `device_trust_score` sharpen the
-                behavioral model before classification.
-              </p>
-            </div>
-            <div>
-              <span>03</span>
-              <h3>Independent training</h3>
-              <p>
-                The Indian model learns transaction behavior from the regional
-                dataset, while the global model learns card-level anomalies from
-                the European fraud dataset.
-              </p>
-            </div>
-            <div>
-              <span>04</span>
-              <h3>Fusion decision</h3>
-              <p>
-                Flask serves a single prediction endpoint that combines both
-                probabilities and returns one fraud score, one risk level, and
-                one explanation set.
-              </p>
-            </div>
-          </div>
-        </section>
       </main>
     </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
   </body>
 </html>

@@ -1,0 +1,68 @@
+<button
+  type="button"
+  class="mobile-sidebar-launch"
+  id="mobile-sidebar-open"
+  aria-label="Open navigation"
+  aria-controls="primary-sidebar"
+  aria-expanded="false"
+>
+  <span></span>
+  <span></span>
+  <span></span>
+</button>
+
+<div class="mobile-sidebar-backdrop" id="mobile-sidebar-backdrop" hidden></div>
+
+<aside class="sidebar" id="primary-sidebar">
+  <div class="sidebar-header">
+    <button
+      type="button"
+      class="sidebar-menu-tile"
+      id="sidebar-toggle"
+      aria-label="Toggle sidebar"
+      aria-expanded="true"
+    >
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <div class="sidebar-brand-copy">
+      <div class="sidebar-brand">
+      <p>Sentinel Fraud Shield</p>
+      <span>ML fraud predictor</span>
+      </div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav" aria-label="Primary navigation">
+    <a
+      href="{{ url_for('index') }}"
+      class="sidebar-link {% if active_page == 'prediction' %}active{% endif %}"
+    >
+      <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 6h12M6 12h12M6 18h8" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      </svg>
+      <span class="sidebar-label">Prediction</span>
+    </a>
+    <a
+      href="{{ url_for('metrics') }}"
+      class="sidebar-link {% if active_page == 'metrics' %}active{% endif %}"
+    >
+      <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 17V7M12 17V4M18 17v-9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M4 20h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      </svg>
+      <span class="sidebar-label">Model Metrics</span>
+    </a>
+    <a
+      href="{{ url_for('about') }}"
+      class="sidebar-link {% if active_page == 'about' %}active{% endif %}"
+    >
+      <svg class="sidebar-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.9"/>
+        <path d="M12 10.2v5.1M12 7.6h.01" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      </svg>
+      <span class="sidebar-label">About</span>
+    </a>
+  </nav>
+</aside>

@@ -2,4 +2,14 @@ __pycache__/
 .pytest_cache/
 .matplotlib/
 .DS_Store
+.venv/
+*.pyc
 artifacts/prediction.log
+creditcard.csv
+Updated_Inclusive_Indian_Online_Scam_Dataset (1).csv
+Credit_Card_Fraud_Detection_Macro_Report.docx
+Credit_Card_Fraud_Detection_Macro_Report.txt
+/Rahul_Dhakad2.jpg
+/Kapil_Mewada.jpg
+generate_macro_report.py
+static/generated/hybrid_workflow.png

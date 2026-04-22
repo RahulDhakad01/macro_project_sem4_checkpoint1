@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sentinel Fraud Shield About</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    />
+  </head>
+  <body class="app-page about-page">
+    <div class="ambient-orb orb-a"></div>
+    <div class="ambient-orb orb-b"></div>
+    <div class="ambient-orb orb-c"></div>
+
+    <div class="app-shell">
+      {% set active_page = 'about' %}
+      {% include '_sidebar.html' %}
+
+      <main class="content-area">
+        <header class="about-heading">
+          <h1>About Sentinel Fraud Shield</h1>
+        </header>
+
+        <section class="section about-surface">
+          <div class="info-grid">
+            <article class="info-card info-card-featured">
+              <span class="info-icon" aria-hidden="true">🎓</span>
+              <p class="panel-label">Project overview</p>
+              <h3>Real-time fraud decision support</h3>
+              <p>
+                Sentinel Fraud Shield is an end-to-end credit card fraud
+                detection system that combines two fraud datasets, two machine
+                learning models, and one fused decision layer to screen
+                transactions in real time with explainable output.
+              </p>
+            </article>
+
+            <article class="info-card">
+              <span class="info-icon" aria-hidden="true">🤖</span>
+              <p class="panel-label">Prediction engine</p>
+              <h3>Unified input, dual-model scoring</h3>
+              <p>
+                One unified transaction form captures amount, hour, location,
+                merchant category, card type, transaction velocity, foreign
+                usage, card presence, and distance signals before sending the
+                same profile into both fraud models.
+              </p>
+            </article>
+
+            <article class="info-card">
+              <span class="info-icon" aria-hidden="true">🩺</span>
+              <p class="panel-label">Missing value handling</p>
+              <h3>Stable preprocessing pipeline</h3>
+              <p>
+                Missing numeric values are handled with median imputation,
+                categorical values use most-frequent imputation, and encoding,
+                scaling, and feature preparation are embedded directly inside the
+                training pipelines for reliable prediction behavior.
+              </p>
+            </article>
+
+            <article class="info-card">
+              <span class="info-icon" aria-hidden="true">⚖️</span>
+              <p class="panel-label">Why this helps</p>
+              <h3>Faster screening, clearer actions</h3>
+              <p>
+                The system converts multiple fraud indicators into one fraud
+                score, one risk level, and dynamic reasons such as unusual hour,
+                high amount, new location, foreign usage, or high transaction
+                frequency, making the decision easier to understand.
+              </p>
+            </article>
+
+            <article class="info-card">
+              <span class="info-icon" aria-hidden="true">📊</span>
+              <p class="panel-label">Dataset</p>
+              <h3>Two datasets, two learning styles</h3>
+              <p>
+                The Indian dataset contributes behavioral features such as
+                location, card type, purchase category, customer age, and fraud
+                labels across {{ dashboard.datasets.indian_rows }} rows, while
+                the European Kaggle dataset contributes Time, Amount, and
+                V1-V28 anonymized card-pattern features across
+                {{ dashboard.datasets.european_rows }} rows.
+              </p>
+            </article>
+
+            <article class="info-card">
+              <span class="info-icon" aria-hidden="true">🛠️</span>
+              <p class="panel-label">Methodology</p>
+              <h3>Algorithms and fusion workflow</h3>
+              <p>
+                The Indian behavioral dataset is trained using
+                <strong>Random Forest</strong>, the European dataset is trained
+                using <strong>Logistic Regression</strong>, and the final risk
+                score is fused at {{ dashboard.fusion_weights.indian }} Indian
+                plus {{ dashboard.fusion_weights.global }} global before dynamic
+                reason generation is returned to the user.
+              </p>
+            </article>
+          </div>
+
+          <section class="developer-section">
+            <div class="developer-section-copy">
+              <p class="section-kicker">About the developers</p>
+              <p>
+                This project brings together dataset preparation, model
+                training, fusion scoring, responsive UI design, and deployment
+                readiness in one end-to-end fraud intelligence platform.
+              </p>
+            </div>
+
+            <div class="developer-grid">
+              <article class="developer-card">
+                <div class="developer-avatar developer-photo-frame">
+                  <img
+                    src="{{ url_for('static', filename='profile/rahul_dhakad.jpg') }}"
+                    alt="Rahul Dhakad"
+                    class="developer-photo"
+                  />
+                </div>
+                <h3>Rahul Dhakad</h3>
+                <p>Developer</p>
+              </article>
+              <article class="developer-card">
+                <div class="developer-avatar developer-photo-frame">
+                  <img
+                    src="{{ url_for('static', filename='profile/kapil_mewada.jpg') }}"
+                    alt="Kapil Mewada"
+                    class="developer-photo"
+                  />
+                </div>
+                <h3>Kapil Mewada</h3>
+                <p>Developer</p>
+              </article>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>

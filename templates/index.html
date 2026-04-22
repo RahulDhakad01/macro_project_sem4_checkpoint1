@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
     <link
@@ -15,21 +15,17 @@
       href="{{ url_for('static', filename='styles.css') }}"
     />
   </head>
-  <body class="home-page">
-    <div class="page-shell">
-      <header class="hero">
-        <nav class="topbar">
-          <div class="brand">
-            <span class="brand-mark"></span>
-            <div>
-              <p>Sentinel Fraud Shield</p>
-              <span>ML Credit Card Fraud Detection</span>
-            </div>
-          </div>
-          <a href="#predictor" class="hero-link">Launch prediction</a>
-        </nav>
+  <body class="app-page prediction-page">
+    <div class="ambient-orb orb-a"></div>
+    <div class="ambient-orb orb-b"></div>
+    <div class="ambient-orb orb-c"></div>
 
-        <div class="hero-grid">
+    <div class="app-shell">
+      {% set active_page = 'prediction' %}
+      {% include '_sidebar.html' %}
+
+      <main class="content-area">
+        <header class="page-hero">
           <section class="hero-copy">
             <p class="eyebrow">Hybrid fraud intelligence platform</p>
             <h1>Detect risky card transactions before they become a loss.</h1>
@@ -38,99 +34,60 @@
               behavior signals and global card-usage anomalies into a single live
               risk decision.
             </p>
+
             <div class="hero-actions">
-              <a href="#predictor" class="button primary">Try live detector</a>
+              <a href="#predictor" class="button primary">Launch live detector</a>
               <a href="{{ url_for('metrics') }}" class="button secondary">View model metrics</a>
             </div>
           </section>
 
-          <aside class="hero-panel">
-            <p class="panel-label">Active detection system</p>
+          <aside class="hero-panel spotlight-panel">
+            <div class="panel-topline">
+              <p class="panel-label">Active detection system</p>
+            </div>
             <h2>{{ dashboard.system_name }}</h2>
+
             <div class="stat-strip">
               <div>
                 <span>Indian rows</span>
-                <strong>{{ dashboard.datasets.indian_rows }}</strong>
+                <strong class="count-up" data-count="{{ dashboard.datasets.indian_rows }}" data-decimals="0">0</strong>
               </div>
               <div>
                 <span>European rows</span>
-                <strong>{{ dashboard.datasets.european_rows }}</strong>
+                <strong class="count-up" data-count="{{ dashboard.datasets.european_rows }}" data-decimals="0">0</strong>
               </div>
               <div>
                 <span>Fusion</span>
                 <strong>{{ (dashboard.fusion_weights.indian * 100) | int }}/{{ (dashboard.fusion_weights.global * 100) | int }}</strong>
               </div>
             </div>
-            <ul class="hero-notes">
-              <li>Uses the Indian scam dataset plus the European Kaggle card fraud dataset</li>
-              <li>One unified input form feeds two separate fraud models</li>
-              <li>The backend returns one fused prediction with dynamic reasons</li>
+
+            <ul class="hero-notes polished-list">
+              <li>Uses the Indian scam dataset plus the European Kaggle card fraud dataset.</li>
+              <li>One unified input form feeds two separate fraud models.</li>
+              <li>The backend returns one fused prediction with dynamic reasons.</li>
             </ul>
           </aside>
-        </div>
-      </header>
-
-      <main>
-        <section class="section intro">
-          <div>
-            <p class="section-kicker">System overview</p>
-            <h2>Hybrid risk intelligence for real-time transaction screening.</h2>
-          </div>
-          <div class="intro-copy">
-            <p>
-              The system now follows a hybrid fraud-detection pipeline: regional
-              behavior learning from the Indian dataset, global card-pattern
-              learning from the European dataset, and a fusion layer that combines
-              both views into one decision.
-            </p>
-            <p>
-              A unified scoring engine converts those signals into one risk score,
-              one risk level, and one dynamic explanation stream for every
-              transaction profile submitted through the interface.
-            </p>
-          </div>
-        </section>
-
-        <section class="section analytics-ribbon">
-          <article>
-            <span>System</span>
-            <strong>Hybrid</strong>
-            <p>Indian behavioral model plus global card-pattern model working together.</p>
-          </article>
-          <article>
-            <span>Indian CV F1</span>
-            <strong>{{ dashboard.comparison[0].metrics.cv_f1 }}</strong>
-            <p>Cross-validated regional model strength on the Indian dataset.</p>
-          </article>
-          <article>
-            <span>Global ROC-AUC</span>
-            <strong>{{ dashboard.comparison[1].metrics.roc_auc }}</strong>
-            <p>Global model quality on highly imbalanced European card data.</p>
-          </article>
-          <article>
-            <span>Fusion weights</span>
-            <strong>{{ dashboard.fusion_weights.indian }}/{{ dashboard.fusion_weights.global }}</strong>
-            <p>Final fraud score = 0.6 Indian probability + 0.4 global probability.</p>
-          </article>
-        </section>
+        </header>
 
         <section class="section workspace" id="predictor">
-          <div class="workspace-header">
+          <div class="section-intro workspace-intro">
             <div>
-              <p class="section-kicker">Live fraud detector</p>
+              <p class="section-kicker">Prediction workspace</p>
               <h2>Enter one unified transaction profile and get a fused fraud decision.</h2>
             </div>
-            <div class="scenario-row">
-              {% for key, scenario in dashboard.scenarios.items() %}
-              <button
-                type="button"
-                class="scenario-button"
-                data-scenario="{{ key }}"
-              >
-                {{ scenario.label }}
-              </button>
-              {% endfor %}
-            </div>
+          </div>
+
+          <div class="scenario-row">
+            {% for key, scenario in dashboard.scenarios.items() %}
+            <button
+              type="button"
+              class="scenario-button"
+              data-scenario="{{ key }}"
+            >
+              {{ scenario.label }}
+            </button>
+            {% endfor %}
           </div>
 
           <div class="workspace-grid">
@@ -161,21 +118,23 @@
                 </label>
                 {% endfor %}
               </div>
+
               <div class="form-actions">
-                <button type="submit" class="button primary">Predict now</button>
-                <button type="reset" class="button secondary subtle">Reset</button>
+                <button type="submit" class="button primary">Predict risk</button>
+                <button type="reset" class="button secondary subtle">Reset form</button>
               </div>
-              <p class="form-note">
-                One form powers the whole system. Category fields come from the Indian dataset, and binary fields still use <strong>0 = No</strong> and <strong>1 = Yes</strong>.
-              </p>
             </form>
 
             <aside class="result-panel" id="result-panel">
-              <p class="panel-label">Prediction result</p>
-              <h3 id="result-status">Waiting for analysis</h3>
+              <div class="panel-topline">
+                <p class="panel-label">Prediction result</p>
+                <span class="risk-badge neutral" id="result-badge">Awaiting input</span>
+              </div>
+
+              <h3 id="result-status">Ready for analysis</h3>
               <p id="result-summary" class="result-summary">
-                Submit the transaction to see fraud probability, confidence, and
-                the top reasons behind the decision.
+                Run a prediction to display the fraud score, model confidence,
+                and the strongest reasons behind the final decision.
               </p>
 
               <div class="result-metrics">
@@ -200,7 +159,7 @@
               <div class="factor-box">
                 <p class="panel-label">Top risk factors</p>
                 <ul id="result-factors">
-                  <li>Model explanation will appear here after prediction.</li>
+                  <li>Explanation factors will appear here after prediction.</li>
                 </ul>
               </div>
             </aside>

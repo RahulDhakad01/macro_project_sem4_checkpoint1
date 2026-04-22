@@ -363,11 +363,15 @@ class FraudDetectionService:
         )
         p_indian = float(self.bundle["indian_model"].predict_proba(indian_frame)[0][1])
 
-        global_input = build_global_input(
-            validated, engineered, self.bundle["global_reference"]
+        global_input, global_risk_proxy = build_global_input(
+            validated,
+            engineered,
+            self.bundle["global_reference"],
+            self.bundle["indian_reference"],
         )
         global_frame = pd.DataFrame([global_input], columns=GLOBAL_MODEL_FEATURES)
-        p_global = float(self.bundle["global_model"].predict_proba(global_frame)[0][1])
+        raw_global_probability = float(self.bundle["global_model"].predict_proba(global_frame)[0][1])
+        p_global = calibrate_global_probability(raw_global_probability, global_risk_proxy)
 
         final_score = (
             self.bundle["fusion_weights"]["indian"] * p_indian
@@ -401,6 +405,8 @@ class FraudDetectionService:
                     },
                     "P_indian": round(p_indian, 4),
                     "P_global": round(p_global, 4),
+                    "P_global_raw": round(raw_global_probability, 4),
+                    "global_risk_proxy": round(global_risk_proxy, 4),
                     "fraud_score": round(final_score, 4),
                     "risk_level": risk_level,
                 }
@@ -578,6 +584,9 @@ def prepare_european_dataset(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str,
     v_columns = [f"V{i}" for i in range(1, 29)]
     reference = {
         "amount_threshold": round(float(raw["Amount"].quantile(0.9)), 2),
+        "amount_q99": round(float(raw["Amount"].quantile(0.99)), 2),
+        "safe_amount_median": round(float(raw[raw["Class"] == 0]["Amount"].median()), 2),
+        "fraud_amount_median": round(float(raw[raw["Class"] == 1]["Amount"].median()), 2),
         "time_max": float(raw["Time"].max()),
         "fraud_medians": raw[raw["Class"] == 1][v_columns].median().to_dict(),
         "safe_medians": raw[raw["Class"] == 0][v_columns].median().to_dict(),
@@ -881,21 +890,14 @@ def device_trust_score(
 
 
 def build_global_input(
-    values: dict[str, Any], engineered: dict[str, Any], global_reference: dict[str, Any]
-) -> dict[str, float]:
-    risk_proxy = np.clip(
-        0.25 * engineered["high_amount"]
-        + 0.16 * engineered["is_night"]
-        + 0.18 * values["foreign_transaction"]
-        + 0.12 * (1 - values["card_present"])
-        + 0.12 * min(values["transactions_last_24h"] / 12, 1)
-        + 0.10 * min(values["previous_declined_transactions"] / 4, 1)
-        + 0.07 * min(values["distance_from_home"] / 1500, 1),
-        0,
-        1,
-    )
+    values: dict[str, Any],
+    engineered: dict[str, Any],
+    global_reference: dict[str, Any],
+    indian_reference: dict[str, Any],
+) -> tuple[dict[str, float], float]:
+    risk_proxy = global_structural_risk(values, engineered)
 
-    amount = float(values["transaction_amount"])
+    amount = mapped_global_amount(values, engineered, global_reference, indian_reference, risk_proxy)
     time_seconds = float(
         min(global_reference["time_max"], values["transaction_hour"] * 3600 + values["transactions_last_24h"] * 45)
     )
@@ -916,8 +918,58 @@ def build_global_input(
         fraud = global_reference["fraud_medians"][key]
         std = global_reference["v_stds"][key]
         oscillation = math.sin(seed * (index + 1))
-        mapped[key] = safe + risk_proxy * (fraud - safe) + oscillation * std * 0.035
-    return mapped
+        curve = risk_proxy ** 1.8
+        mapped[key] = safe + curve * (fraud - safe) + oscillation * std * (0.01 + 0.015 * risk_proxy)
+    return mapped, risk_proxy
+
+
+def global_structural_risk(values: dict[str, Any], engineered: dict[str, Any]) -> float:
+    return float(
+        np.clip(
+            0.24 * engineered["high_amount"]
+            + 0.11 * engineered["is_night"]
+            + 0.16 * values["foreign_transaction"]
+            + 0.10 * (1 - values["card_present"])
+            + 0.10 * min(values["transactions_last_24h"] / 16, 1)
+            + 0.08 * min(values["previous_declined_transactions"] / 5, 1)
+            + 0.07 * min(values["distance_from_home"] / 2500, 1)
+            + 0.14 * max(0, (45 - engineered["device_trust_score"]) / 45),
+            0,
+            1,
+        )
+    )
+
+
+def mapped_global_amount(
+    values: dict[str, Any],
+    engineered: dict[str, Any],
+    global_reference: dict[str, Any],
+    indian_reference: dict[str, Any],
+    risk_proxy: float,
+) -> float:
+    safe_amount = float(global_reference.get("safe_amount_median", 22.0))
+    amount_ceiling = float(
+        max(
+            global_reference.get("amount_q99", global_reference["amount_threshold"] * 5),
+            global_reference["amount_threshold"] + 1,
+        )
+    )
+    baseline_threshold = max(float(indian_reference["amount_threshold"]), 1.0)
+    amount_ratio = min(values["transaction_amount"] / baseline_threshold, 3.0) / 3.0
+    if engineered["high_amount"] == 0:
+        amount_ratio *= 0.35
+    amount_blend = np.clip(0.7 * risk_proxy + 0.3 * amount_ratio, 0, 1)
+    return float(safe_amount + (amount_blend ** 1.6) * (amount_ceiling - safe_amount))
+
+
+def calibrate_global_probability(raw_probability: float, risk_proxy: float) -> float:
+    blend = 0.18 + 0.72 * risk_proxy
+    calibrated = blend * raw_probability + (1 - blend) * risk_proxy
+    if risk_proxy < 0.12:
+        calibrated = min(calibrated, 0.18)
+    elif risk_proxy < 0.2:
+        calibrated = min(calibrated, 0.28)
+    return float(np.clip(calibrated, 0.01, 0.99))
 
 
 def fusion_risk_band(score: float) -> str:
