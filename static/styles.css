@@ -139,7 +139,8 @@ body::before {
 .mobile-sidebar-launch {
   position: fixed;
   top: 0.95rem;
-  left: 0.95rem;
+  right: 0.95rem;
+  left: auto;
   z-index: 60;
   width: 58px;
   height: 58px;
@@ -181,6 +182,10 @@ body::before {
   z-index: 45;
   background: rgba(17, 14, 12, 0.24);
   backdrop-filter: blur(6px);
+}
+
+.mobile-sidebar-backdrop[hidden] {
+  display: none !important;
 }
 
 .sidebar-header,
@@ -406,6 +411,7 @@ body::before {
 
 .about-page .about-heading h1 {
   color: var(--ink);
+  font-family: "Sora", sans-serif;
   font-size: clamp(1.95rem, 3.2vw, 2.65rem);
   line-height: 1.08;
   margin-bottom: 1.2rem;
@@ -1555,6 +1561,11 @@ body.sidebar-collapsed .sidebar-nav {
 }
 
 @media (max-width: 900px) {
+  .ambient-orb {
+    opacity: 0.18;
+    filter: blur(6px);
+  }
+
   .app-shell {
     width: min(100% - 0.9rem, 100%);
     padding: 0.55rem 0 1rem;
@@ -1579,6 +1590,22 @@ body.sidebar-collapsed .sidebar-nav {
     box-shadow: 0 26px 68px rgba(33, 24, 18, 0.2);
   }
 
+  .sidebar,
+  .hero-panel,
+  .predictor-form,
+  .result-panel,
+  .signal-card,
+  .metric-spotlight,
+  .model-card,
+  .visual-card,
+  .info-card,
+  .developer-card,
+  .mobile-sidebar-launch,
+  .developer-section,
+  .about-surface {
+    backdrop-filter: none !important;
+  }
+
   body.sidebar-collapsed .app-shell {
     grid-template-columns: 1fr;
   }
@@ -1600,6 +1627,11 @@ body.sidebar-collapsed .sidebar-nav {
   .mobile-sidebar-launch,
   .mobile-sidebar-backdrop {
     display: block;
+  }
+
+  .mobile-sidebar-backdrop {
+    background: rgba(17, 14, 12, 0.16);
+    backdrop-filter: none;
   }
 
   body.mobile-nav-open .mobile-sidebar-launch {
